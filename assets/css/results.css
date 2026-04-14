@@ -1,0 +1,650 @@
+/**
+ * ElementTest Pro — Results Dashboard Styles
+ *
+ * Clean, data-forward design with sharp typography and
+ * purposeful color coding for variant performance.
+ *
+ * @package ElementTestPro
+ * @since   1.0.0
+ */
+
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=DM+Sans:ital,wght@0,400;0,500;0,600;0,700&display=swap');
+
+/* ==========================================================================
+   Layout
+   ========================================================================== */
+
+.elementtest-results-wrap {
+	max-width: 1200px;
+	font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+.etr-section {
+	background: #fff;
+	border: 1px solid #dcdcde;
+	border-radius: 6px;
+	margin-bottom: 20px;
+	overflow: hidden;
+}
+
+.etr-section-header {
+	padding: 16px 24px;
+	border-bottom: 1px solid #f0f0f1;
+}
+
+.etr-section-header h2 {
+	margin: 0;
+	font-size: 15px;
+	font-weight: 700;
+	color: #1d2327;
+	letter-spacing: -0.01em;
+}
+
+/* ==========================================================================
+   Header
+   ========================================================================== */
+
+.etr-header {
+	margin-bottom: 24px;
+	padding-bottom: 20px;
+	border-bottom: 1px solid #dcdcde;
+}
+
+.etr-header-top {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	margin-bottom: 12px;
+}
+
+.etr-back {
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+	color: #2271b1;
+	text-decoration: none;
+	font-size: 13px;
+	font-weight: 500;
+}
+
+.etr-back:hover {
+	color: #135e96;
+}
+
+.etr-back .dashicons {
+	font-size: 16px;
+	width: 16px;
+	height: 16px;
+}
+
+.etr-header-actions {
+	display: flex;
+	gap: 8px;
+}
+
+.etr-header-actions .dashicons {
+	font-size: 14px;
+	width: 14px;
+	height: 14px;
+	vertical-align: middle;
+	margin-top: -2px;
+}
+
+.etr-header-title {
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	flex-wrap: wrap;
+}
+
+.etr-header-title h1 {
+	font-family: 'DM Sans', sans-serif;
+	font-size: 24px;
+	font-weight: 700;
+	margin: 0;
+	padding: 0;
+	color: #1d2327;
+	letter-spacing: -0.025em;
+	line-height: 1.2;
+}
+
+.etr-description {
+	color: #646970;
+	font-size: 14px;
+	margin: 6px 0 0;
+}
+
+/* Status badges */
+.etr-status {
+	display: inline-block;
+	padding: 3px 10px;
+	border-radius: 12px;
+	font-size: 11px;
+	font-weight: 700;
+	letter-spacing: 0.03em;
+	text-transform: uppercase;
+}
+
+.etr-status-running {
+	background: #d4edda;
+	color: #0a5c1f;
+}
+
+.etr-status-paused {
+	background: #fff3cd;
+	color: #664d03;
+}
+
+.etr-status-draft {
+	background: #e2e3e5;
+	color: #41464b;
+}
+
+.etr-status-completed {
+	background: #cce5ff;
+	color: #004085;
+}
+
+/* Meta tags (type, etc) */
+.etr-meta-tag {
+	display: inline-block;
+	padding: 3px 8px;
+	border-radius: 4px;
+	font-size: 11px;
+	font-weight: 600;
+	background: #f0f0f1;
+	color: #646970;
+	font-family: 'IBM Plex Mono', monospace;
+	letter-spacing: 0.04em;
+}
+
+/* Tags */
+.etr-tag {
+	display: inline-block;
+	padding: 2px 8px;
+	border-radius: 4px;
+	font-size: 11px;
+	font-weight: 600;
+	background: #f0f0f1;
+	color: #646970;
+}
+
+.etr-tag-control {
+	background: #d4edda;
+	color: #0a5c1f;
+}
+
+/* ==========================================================================
+   KPI Cards
+   ========================================================================== */
+
+.etr-kpi-row {
+	display: grid;
+	grid-template-columns: repeat( 4, 1fr );
+	gap: 16px;
+	margin-bottom: 24px;
+}
+
+.etr-kpi-card {
+	background: #fff;
+	border: 1px solid #dcdcde;
+	border-radius: 6px;
+	padding: 20px 24px;
+	display: flex;
+	flex-direction: column;
+}
+
+.etr-kpi-label {
+	font-size: 11px;
+	font-weight: 600;
+	text-transform: uppercase;
+	letter-spacing: 0.06em;
+	color: #646970;
+	margin-bottom: 6px;
+}
+
+.etr-kpi-value {
+	font-family: 'DM Sans', sans-serif;
+	font-size: 32px;
+	font-weight: 700;
+	color: #1d2327;
+	letter-spacing: -0.03em;
+	line-height: 1;
+	margin-bottom: 4px;
+}
+
+.etr-kpi-sub {
+	font-size: 12px;
+	color: #a7aaad;
+}
+
+/* ==========================================================================
+   Variant Cards
+   ========================================================================== */
+
+.etr-variants-grid {
+	padding: 20px 24px;
+	display: flex;
+	flex-direction: column;
+	gap: 16px;
+}
+
+.etr-variant-card {
+	border: 1px solid #dcdcde;
+	border-radius: 6px;
+	overflow: hidden;
+	transition: box-shadow 0.2s ease;
+}
+
+.etr-variant-card:hover {
+	box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+}
+
+.etr-variant-control {
+	border-color: #c6d9ae;
+}
+
+.etr-variant-card-header {
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	padding: 14px 20px;
+	background: #fafafa;
+	border-bottom: 1px solid #f0f0f1;
+}
+
+.etr-variant-control .etr-variant-card-header {
+	background: #f5f9f0;
+}
+
+.etr-variant-badge {
+	width: 30px;
+	height: 30px;
+	border-radius: 50%;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	color: #fff;
+	font-weight: 700;
+	font-size: 13px;
+	flex-shrink: 0;
+}
+
+.etr-variant-name-wrap {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	flex: 1;
+}
+
+.etr-variant-name {
+	font-weight: 600;
+	font-size: 14px;
+	color: #1d2327;
+}
+
+/* Lift indicator */
+.etr-lift {
+	display: flex;
+	align-items: center;
+	gap: 3px;
+	font-size: 14px;
+	font-weight: 700;
+	padding: 4px 10px;
+	border-radius: 6px;
+}
+
+.etr-lift .dashicons {
+	font-size: 16px;
+	width: 16px;
+	height: 16px;
+}
+
+.etr-lift-up {
+	color: #0a5c1f;
+	background: rgba(0, 163, 42, 0.08);
+}
+
+.etr-lift-down {
+	color: #9b2c2c;
+	background: rgba(214, 54, 56, 0.06);
+}
+
+.etr-lift-flat {
+	color: #646970;
+	background: rgba(0, 0, 0, 0.04);
+}
+
+/* Card body */
+.etr-variant-card-body {
+	padding: 20px;
+}
+
+/* Rate bar */
+.etr-rate-bar-row {
+	display: flex;
+	align-items: center;
+	gap: 14px;
+	margin-bottom: 20px;
+}
+
+.etr-rate-bar-track {
+	flex: 1;
+	height: 10px;
+	background: #f0f0f1;
+	border-radius: 5px;
+	overflow: hidden;
+}
+
+.etr-rate-bar-fill {
+	height: 100%;
+	border-radius: 5px;
+	transition: width 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+	min-width: 2px;
+}
+
+.etr-rate-value {
+	font-family: 'IBM Plex Mono', monospace;
+	font-size: 15px;
+	font-weight: 600;
+	color: #1d2327;
+	width: 56px;
+	text-align: right;
+	flex-shrink: 0;
+}
+
+/* Stats row */
+.etr-stats-row {
+	display: flex;
+	gap: 0;
+}
+
+.etr-stat {
+	flex: 1;
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	padding: 8px 0;
+	border-right: 1px solid #f0f0f1;
+}
+
+.etr-stat:last-child {
+	border-right: none;
+}
+
+.etr-stat-num {
+	font-family: 'IBM Plex Mono', monospace;
+	font-size: 16px;
+	font-weight: 500;
+	color: #1d2327;
+	margin-bottom: 3px;
+}
+
+.etr-stat-label {
+	font-size: 11px;
+	color: #a7aaad;
+	text-transform: uppercase;
+	letter-spacing: 0.04em;
+}
+
+/* Confidence colors */
+.etr-confidence-high {
+	color: #0a5c1f !important;
+}
+
+.etr-confidence-medium {
+	color: #b45309 !important;
+}
+
+.etr-confidence-low {
+	color: #a7aaad !important;
+}
+
+/* Verdict footer */
+.etr-variant-card-footer {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	padding: 10px 20px;
+	font-size: 12px;
+	font-weight: 600;
+	border-top: 1px solid #f0f0f1;
+}
+
+.etr-variant-card-footer .dashicons {
+	font-size: 16px;
+	width: 16px;
+	height: 16px;
+}
+
+.etr-verdict-high {
+	background: #f0faf0;
+	color: #0a5c1f;
+}
+
+.etr-verdict-high .dashicons-dismiss {
+	color: #9b2c2c;
+}
+
+.etr-variant-card-footer.etr-verdict-high:has(.dashicons-dismiss) {
+	background: #fef2f2;
+	color: #9b2c2c;
+}
+
+.etr-verdict-medium {
+	background: #fffbeb;
+	color: #b45309;
+}
+
+.etr-verdict-low {
+	background: #f9fafb;
+	color: #646970;
+}
+
+/* ==========================================================================
+   Chart
+   ========================================================================== */
+
+.etr-chart-container {
+	position: relative;
+	padding: 20px 24px;
+}
+
+.etr-chart-container canvas {
+	width: 100% !important;
+	display: block;
+}
+
+.etr-chart-empty {
+	position: absolute;
+	top: 0;
+	left: 0;
+	right: 0;
+	bottom: 0;
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	gap: 8px;
+	color: #a7aaad;
+}
+
+.etr-chart-empty .dashicons {
+	font-size: 40px;
+	width: 40px;
+	height: 40px;
+	opacity: 0.4;
+}
+
+.etr-chart-empty p {
+	margin: 0;
+	font-size: 13px;
+}
+
+/* ==========================================================================
+   Goals Table
+   ========================================================================== */
+
+.etr-goals-table {
+	width: 100%;
+	border-collapse: collapse;
+}
+
+.etr-goals-table thead th {
+	background: #fafafa;
+	padding: 10px 16px;
+	text-align: left;
+	font-size: 11px;
+	font-weight: 700;
+	text-transform: uppercase;
+	letter-spacing: 0.04em;
+	color: #646970;
+	border-bottom: 1px solid #dcdcde;
+}
+
+.etr-goals-table tbody td {
+	padding: 12px 16px;
+	font-size: 13px;
+	border-bottom: 1px solid #f0f0f1;
+	color: #1d2327;
+	vertical-align: middle;
+}
+
+.etr-goals-table tbody tr:last-child td {
+	border-bottom: none;
+}
+
+.etr-goals-table code {
+	font-family: 'IBM Plex Mono', monospace;
+	font-size: 11px;
+	background: #f6f7f7;
+	padding: 2px 6px;
+	border-radius: 3px;
+	color: #3c434a;
+}
+
+.etr-goal-name {
+	font-weight: 600;
+}
+
+/* ==========================================================================
+   Details Grid
+   ========================================================================== */
+
+.etr-details-section {
+	margin-bottom: 40px;
+}
+
+.etr-details-grid {
+	padding: 16px 24px;
+	display: grid;
+	grid-template-columns: repeat( 3, 1fr );
+	gap: 0;
+}
+
+.etr-detail {
+	padding: 12px 0;
+	border-bottom: 1px solid #f0f0f1;
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+}
+
+.etr-detail:nth-last-child(-n+3) {
+	border-bottom: none;
+}
+
+.etr-detail-label {
+	font-size: 11px;
+	font-weight: 600;
+	text-transform: uppercase;
+	letter-spacing: 0.06em;
+	color: #a7aaad;
+}
+
+.etr-detail-value {
+	font-size: 13px;
+	color: #1d2327;
+}
+
+.etr-detail-value a {
+	color: #2271b1;
+	text-decoration: none;
+}
+
+.etr-detail-value a:hover {
+	color: #135e96;
+	text-decoration: underline;
+}
+
+.etr-detail-value code {
+	font-family: 'IBM Plex Mono', monospace;
+	font-size: 11px;
+	background: #f6f7f7;
+	padding: 2px 6px;
+	border-radius: 3px;
+	color: #3c434a;
+}
+
+/* ==========================================================================
+   Responsive
+   ========================================================================== */
+
+@media screen and ( max-width: 960px ) {
+	.etr-kpi-row {
+		grid-template-columns: repeat( 2, 1fr );
+	}
+
+	.etr-details-grid {
+		grid-template-columns: repeat( 2, 1fr );
+	}
+
+	.etr-detail:nth-last-child(-n+3) {
+		border-bottom: 1px solid #f0f0f1;
+	}
+
+	.etr-detail:nth-last-child(-n+2) {
+		border-bottom: none;
+	}
+}
+
+@media screen and ( max-width: 600px ) {
+	.etr-kpi-row {
+		grid-template-columns: 1fr;
+	}
+
+	.etr-header-title h1 {
+		font-size: 20px;
+	}
+
+	.etr-kpi-value {
+		font-size: 26px;
+	}
+
+	.etr-details-grid {
+		grid-template-columns: 1fr;
+	}
+
+	.etr-detail {
+		border-bottom: 1px solid #f0f0f1;
+	}
+
+	.etr-detail:last-child {
+		border-bottom: none;
+	}
+
+	.etr-stats-row {
+		flex-wrap: wrap;
+	}
+
+	.etr-stat {
+		min-width: 45%;
+		border-bottom: 1px solid #f0f0f1;
+	}
+
+	.etr-header-top {
+		flex-direction: column;
+		align-items: flex-start;
+		gap: 8px;
+	}
+}
