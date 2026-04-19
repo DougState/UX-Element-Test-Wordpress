@@ -31,7 +31,7 @@ try {
 	// Constants & State
 	// =========================================================================
 
-	var VERSION = '2.2.5';
+	var VERSION = '2.3.6';
 	var OBSERVER_TIMEOUT = 8000; // Max time (ms) to wait for elements via MutationObserver.
 	var ANTIFLICKER_TIMEOUT = 3000; // Max time (ms) before forcing anti-flicker removal.
 
@@ -1120,40 +1120,36 @@ try {
 			});
 		}
 
-		// Strategy 2: Single product page form submission.
-		// The `.single_add_to_cart_button` lives inside a `form.cart`.
+		// Strategy 2: Single product page button click.
+		// Uses capture phase so it fires before any intermediate handler
+		// (theme, swatch plugin, etc.) can call stopPropagation().
 		document.addEventListener( 'click', function( event ) {
 			var target = event.target;
 
 			while ( target && target !== document ) {
 				if ( target.matches && target.matches( '.single_add_to_cart_button' ) ) {
-					var form = target.closest( 'form.cart' );
-					var productId = '';
-					var productName = '';
-					var productQty = '1';
-
-					if ( form ) {
-						var pidInput = form.querySelector( 'input[name="add-to-cart"]' ) ||
-						               form.querySelector( 'input[name="product_id"]' );
-						if ( pidInput ) {
-							productId = pidInput.value;
-						}
-						var qtyInput = form.querySelector( 'input[name="quantity"]' );
-						if ( qtyInput ) {
-							productQty = qtyInput.value || '1';
-						}
-					}
-
-					if ( ! productId && target.getAttribute( 'value' ) ) {
-						productId = target.getAttribute( 'value' );
-					}
-
-					fireAddToCartGoals( target, productId, productName, productQty );
+					fireAddToCartFromButton( target );
 					return;
 				}
 				target = target.parentNode;
 			}
-		}, false );
+		}, true );
+
+		// Strategy 4: WooCommerce cart form submission.
+		// Catches add-to-cart even when theme/plugin JS prevents click
+		// propagation (e.g., variation swatch plugins, AJAX add-to-cart
+		// overrides). Uses capture phase for the same reason as Strategy 2.
+		document.addEventListener( 'submit', function( event ) {
+			var form = event.target;
+			if ( ! form || ! form.classList ) {
+				return;
+			}
+			if ( ! form.classList.contains( 'cart' ) ) {
+				return;
+			}
+			var button = form.querySelector( '.single_add_to_cart_button' );
+			fireAddToCartFromButton( button || form );
+		}, true );
 
 		// Strategy 3: WooCommerce custom jQuery event on body for any add-to-cart.
 		if ( typeof jQuery !== 'undefined' ) {
@@ -1166,6 +1162,39 @@ try {
 				fireAddToCartGoals( buttonEl, productId, '', '1' );
 			});
 		}
+	}
+
+	/**
+	 * Extract product details from a button/form and fire add-to-cart goals.
+	 *
+	 * Shared by the click handler (Strategy 2) and the form submit handler
+	 * (Strategy 4) to avoid duplicated extraction logic.
+	 *
+	 * @param {Element} element The button or form element.
+	 */
+	function fireAddToCartFromButton( element ) {
+		var form = element.closest ? element.closest( 'form.cart' ) : null;
+		var productId = '';
+		var productName = '';
+		var productQty = '1';
+
+		if ( form ) {
+			var pidInput = form.querySelector( 'input[name="add-to-cart"]' ) ||
+			               form.querySelector( 'input[name="product_id"]' );
+			if ( pidInput ) {
+				productId = pidInput.value;
+			}
+			var qtyInput = form.querySelector( 'input[name="quantity"]' );
+			if ( qtyInput ) {
+				productQty = qtyInput.value || '1';
+			}
+		}
+
+		if ( ! productId && element.getAttribute && element.getAttribute( 'value' ) ) {
+			productId = element.getAttribute( 'value' );
+		}
+
+		fireAddToCartGoals( element, productId, productName, productQty );
 	}
 
 	/**

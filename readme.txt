@@ -3,7 +3,7 @@ Contributors: Doug Wagner
 Tags: ab-testing, split-testing, conversion, optimization, analytics
 Requires at least: 5.6
 Tested up to: 6.7
-Stable tag: 2.3
+Stable tag: 2.3.6
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -45,6 +45,24 @@ Yes, ElementTest Pro is designed to work with popular page builders like Element
 All testing data is stored in your WordPress database. No external services are used.
 
 == Changelog ==
+
+= 2.3.6 =
+* Security: Close unauthenticated DB write amplification / DoS on public tracking endpoints (Issue #31). Test/variant/conversion-goal/page-scope validation now runs BEFORE the per-(IP, test_id, event) rate-limit write, so a rotating `test_id` attack can no longer fan out transients or DB lookups. A new per-IP cap on invalid tracking requests fires at the top of every public tracking endpoint, keyed on IP only (one transient per IP regardless of how many attacker-controlled parameters get rotated). Filter `elementtest_invalid_request_cap` (default 30/hour) tunes the threshold. Affects `track_impression`, `track_conversion`, and `get_variant_assignment`.
+
+= 2.3.5 =
+* Security: Harden HTML report export against stored XSS. `wp_json_encode()` now emits with `JSON_HEX_TAG` so `<` and `>` are escaped inside the inline `<script>` block, preventing `</script>` breakout via test/variant/goal names.
+* Fix: HTML report charts now degrade gracefully when the Chart.js CDN is unreachable. Added a `typeof Chart === 'undefined'` guard that hides `.chart-card` containers and returns early instead of throwing `ReferenceError`.
+
+= 2.3.4 =
+* New: HTML report export now includes a visual dashboard powered by Chart.js — 5 charts (daily conversion rate, cumulative conversions, overall conversion rate, goal breakdown, daily traffic split) in addition to the existing data tables
+* Chart.js loads from jsDelivr CDN; if the CDN is blocked or unavailable the report falls back cleanly to data tables only
+* Charts are hidden in the print stylesheet so printed reports stay clean
+
+= 2.3.3 =
+* New: `--format=json` option for `wp elementtest export` and `wp elementtest export_all` CLI commands — enables downstream tooling (e.g. external dashboards) to consume raw report data
+
+= 2.3.1 =
+* Fix: Add-to-cart conversion not tracking for CSS variants — switch click handler to capture phase and add form submit backup strategy
 
 = 2.3.0 =
 * New: Export A/B test results as standalone HTML reports or CSV files for offline analysis and stakeholder sharing

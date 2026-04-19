@@ -304,7 +304,12 @@ $version  = defined( 'ELEMENTTEST_VERSION' ) ? ELEMENTTEST_VERSION : '2.3.0';
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
 <script>
 (function() {
-    var reportData = <?php echo wp_json_encode( $report, JSON_UNESCAPED_SLASHES ); ?>;
+    if (typeof Chart === 'undefined') {
+        var cards = document.querySelectorAll('.chart-card');
+        for (var i = 0; i < cards.length; i++) cards[i].style.display = 'none';
+        return;
+    }
+    var reportData = <?php echo wp_json_encode( $report, JSON_UNESCAPED_SLASHES | JSON_HEX_TAG ); ?>;
     var COLORS = ['#6366f1', '#f59e0b', '#10b981', '#ef4444', '#8b5cf6', '#ec4899'];
 
     var variantNames = reportData.variants.map(function(v) { return v.name; });

@@ -2,6 +2,31 @@
 
 `readme.txt` remains the canonical WordPress.org release history for this plugin. This file mirrors the shipped release notes in a GitHub-friendly format.
 
+## 2.3.6
+
+- Security: Close unauthenticated DB write amplification / DoS on public tracking endpoints (Issue #31). Previously, the per-test IP rate limiter ran *before* validating that `test_id` belonged to a real, running test. Because the rate-limit transient key mixes in `$test_id`, an attacker could rotate `test_id` values to get a fresh transient on every request — both evading the cap and creating unbounded rows in `wp_options`.
+- Reorder: `track_impression()`, `track_conversion()`, and `get_variant_assignment()` now validate test / variant / conversion-goal / page-scope BEFORE touching the per-test rate limit. Invalid `test_id` requests no longer write transients and no longer reach the per-(IP, test_id, event) bucket at all.
+- New per-IP cap on invalid tracking requests: a read-only, IP-only gate runs first on every public tracking endpoint — a single transient per IP no matter how many attacker-controlled parameters get rotated. The counter is only incremented after validation failure. Default cap: 30 bad requests per hour per IP, tunable via the `elementtest_invalid_request_cap` filter.
+
+## 2.3.5
+
+- Security: Harden HTML report export against stored XSS. The inline `<script>` block that carries the report payload now encodes its JSON with `JSON_HEX_TAG`, so `<` and `>` are escaped — a test, variant, or goal name containing a literal `</script>` can no longer break out of the script context.
+- Fix: HTML report charts now degrade gracefully when the Chart.js CDN is unreachable. The inline chart bootstrap checks `typeof Chart === 'undefined'` before calling `new Chart(...)`, hides the chart cards, and returns early. Previously the script threw `ReferenceError` and left empty chart cards visible.
+
+## 2.3.4
+
+- New: HTML report export now includes a visual dashboard powered by Chart.js. Five charts render above the existing data tables: daily conversion rate per variant (line), cumulative conversions per variant (line), overall conversion rate per variant (bar), goal breakdown (stacked bar), and daily traffic split per variant (line).
+- Chart.js is loaded from the jsDelivr CDN. If the CDN is blocked or unavailable, the report falls back cleanly to the data tables — no broken charts, no errors.
+- The print stylesheet hides the charts so printed / PDF-exported reports stay clean.
+
+## 2.3.3
+
+- New: `--format=json` option for the `wp elementtest export` and `wp elementtest export_all` CLI commands. JSON output includes the full report payload — test metadata, per-variant impressions / conversions / rate / lift / confidence / verdict, and per-goal breakdowns — enabling downstream tooling like external dashboards to consume the raw data directly. HTML and CSV remain the default formats.
+
+## 2.3.1
+
+- Fix: Add-to-cart conversions now track reliably on CSS variants. The click handler runs in the capture phase and a form-submit backup path is in place, so WooCommerce theme / swatch JS can no longer block tracking via `stopPropagation()`.
+
 ## 2.3.0
 
 - New: Export A/B test results as standalone HTML reports or CSV files for offline analysis and stakeholder sharing.

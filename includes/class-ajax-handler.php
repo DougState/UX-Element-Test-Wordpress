@@ -1183,8 +1183,10 @@ class ElementTest_Ajax_Handler {
 			);
 		}
 
-		// IP-based rate limit — caps total impression inserts regardless of identity.
-		if ( $this->check_ip_rate_limit( $test_id, 'impression' ) ) {
+		// Per-IP cap on invalid tracking requests. Read-only, cheap, and fires
+		// BEFORE any DB lookup or transient write so a rotating test_id attack
+		// cannot fan out transients or DB reads (Issue #31).
+		if ( $this->invalid_request_cap_exceeded() ) {
 			status_header( 429 );
 			wp_send_json_error(
 				array( 'message' => __( 'Rate limit exceeded. Please try again later.', 'elementtest-pro' ) )
@@ -1200,6 +1202,7 @@ class ElementTest_Ajax_Handler {
 		);
 
 		if ( 'running' !== $test_status ) {
+			$this->record_invalid_request();
 			wp_send_json_error(
 				array( 'message' => __( 'This test is not currently running.', 'elementtest-pro' ) )
 			);
@@ -1215,8 +1218,18 @@ class ElementTest_Ajax_Handler {
 		);
 
 		if ( ! $variant_exists ) {
+			$this->record_invalid_request();
 			wp_send_json_error(
 				array( 'message' => __( 'Variant does not belong to the specified test.', 'elementtest-pro' ) )
+			);
+		}
+
+		// Test and variant are valid. Apply the per-(IP, test, event) rate limit
+		// now — at this point transients cannot be fanned out by rotating test_id.
+		if ( $this->check_ip_rate_limit( $test_id, 'impression' ) ) {
+			status_header( 429 );
+			wp_send_json_error(
+				array( 'message' => __( 'Rate limit exceeded. Please try again later.', 'elementtest-pro' ) )
 			);
 		}
 
@@ -1315,8 +1328,10 @@ class ElementTest_Ajax_Handler {
 			);
 		}
 
-		// IP-based rate limit — caps total conversion inserts regardless of identity.
-		if ( $this->check_ip_rate_limit( $test_id, 'conversion' ) ) {
+		// Per-IP cap on invalid tracking requests. Read-only, cheap, and fires
+		// BEFORE any DB lookup or transient write so a rotating test_id attack
+		// cannot fan out transients or DB reads (Issue #31).
+		if ( $this->invalid_request_cap_exceeded() ) {
 			status_header( 429 );
 			wp_send_json_error(
 				array( 'message' => __( 'Rate limit exceeded. Please try again later.', 'elementtest-pro' ) )
@@ -1333,6 +1348,7 @@ class ElementTest_Ajax_Handler {
 		);
 
 		if ( empty( $test ) || 'running' !== $test['status'] ) {
+			$this->record_invalid_request();
 			wp_send_json_error(
 				array( 'message' => __( 'This test is not currently running.', 'elementtest-pro' ) )
 			);
@@ -1350,6 +1366,7 @@ class ElementTest_Ajax_Handler {
 		);
 
 		if ( ! $variant_exists ) {
+			$this->record_invalid_request();
 			wp_send_json_error(
 				array( 'message' => __( 'Variant does not belong to the specified test.', 'elementtest-pro' ) )
 			);
@@ -1372,6 +1389,7 @@ class ElementTest_Ajax_Handler {
 			);
 
 			if ( empty( $conversion ) ) {
+				$this->record_invalid_request();
 				wp_send_json_error(
 					array( 'message' => __( 'Conversion goal not found for this test.', 'elementtest-pro' ) )
 				);
@@ -1384,9 +1402,20 @@ class ElementTest_Ajax_Handler {
 		// Enforce page-scoped conversion tracking at the write boundary.
 		// Pageview goals are intentionally allowed to track cross-page destinations.
 		if ( 'pageview' !== $conversion_trigger_type && ! $this->conversion_page_matches( $test_page_url, $client_page_url ) ) {
+			$this->record_invalid_request();
 			status_header( 400 );
 			wp_send_json_error(
 				array( 'message' => __( 'Conversion event is not scoped to the test page.', 'elementtest-pro' ) )
+			);
+		}
+
+		// Test, variant, conversion goal, and page scope are all valid. Apply the
+		// per-(IP, test, event) rate limit now — at this point transients cannot be
+		// fanned out by rotating test_id.
+		if ( $this->check_ip_rate_limit( $test_id, 'conversion' ) ) {
+			status_header( 429 );
+			wp_send_json_error(
+				array( 'message' => __( 'Rate limit exceeded. Please try again later.', 'elementtest-pro' ) )
 			);
 		}
 
@@ -1699,6 +1728,92 @@ class ElementTest_Ajax_Handler {
 	}
 
 	/**
+	 * Check the per-IP cap on invalid public tracking requests.
+	 *
+	 * Read-only. Designed to be the first gate on every public tracking
+	 * endpoint so a rotating `test_id` attack cannot fan out transients or
+	 * DB lookups before being throttled. The caller must invoke
+	 * record_invalid_request() after any validation failure so the counter
+	 * actually grows.
+	 *
+	 * Uses a single transient per IP (keyed on IP only) so the bucket cannot
+	 * be fanned out by attacker-controlled parameters. Window is one hour
+	 * and fixed (not sliding).
+	 *
+	 * @since  2.3.6
+	 * @return bool True if the cap is exceeded and the request should be rejected.
+	 */
+	private function invalid_request_cap_exceeded() {
+		$max = (int) apply_filters( 'elementtest_invalid_request_cap', 30 );
+		if ( $max <= 0 ) {
+			return false;
+		}
+
+		$ip  = ElementTest_Visitor::get_visitor_ip();
+		$key = 'etrl_bad_' . substr( hash( 'sha256', (string) $ip ), 0, 40 );
+		$now = time();
+
+		$bucket = get_transient( $key );
+		if ( ! is_array( $bucket ) ) {
+			return false;
+		}
+
+		$count      = isset( $bucket['count'] ) ? (int) $bucket['count'] : 0;
+		$expires_at = isset( $bucket['expires_at'] ) ? (int) $bucket['expires_at'] : 0;
+
+		if ( $expires_at <= $now ) {
+			return false;
+		}
+
+		return $count >= $max;
+	}
+
+	/**
+	 * Record one invalid public tracking request against the per-IP counter.
+	 *
+	 * Called after validation (test not running, variant mismatch, conversion
+	 * goal mismatch, or page-scope mismatch) fails on a public tracking
+	 * endpoint. The counter is keyed on IP only so an attacker rotating
+	 * attacker-controlled parameters creates exactly one transient per IP
+	 * rather than one per unique parameter combination.
+	 *
+	 * @since 2.3.6
+	 */
+	private function record_invalid_request() {
+		$ip             = ElementTest_Visitor::get_visitor_ip();
+		$key            = 'etrl_bad_' . substr( hash( 'sha256', (string) $ip ), 0, 40 );
+		$window_seconds = HOUR_IN_SECONDS;
+		$now            = time();
+
+		$bucket = get_transient( $key );
+
+		if ( ! is_array( $bucket ) || ! isset( $bucket['expires_at'] ) || (int) $bucket['expires_at'] <= $now ) {
+			set_transient(
+				$key,
+				array(
+					'count'      => 1,
+					'expires_at' => $now + $window_seconds,
+				),
+				$window_seconds
+			);
+			return;
+		}
+
+		$count         = isset( $bucket['count'] ) ? (int) $bucket['count'] : 0;
+		$expires_at    = (int) $bucket['expires_at'];
+		$remaining_ttl = max( 1, $expires_at - $now );
+
+		set_transient(
+			$key,
+			array(
+				'count'      => $count + 1,
+				'expires_at' => $expires_at,
+			),
+			$remaining_ttl
+		);
+	}
+
+	/**
 	 * Build a stable dedupe key for add-to-cart conversions.
 	 *
 	 * Prefer product_id when available. Fall back to product_name so goals still
@@ -1760,6 +1875,16 @@ class ElementTest_Ajax_Handler {
 			);
 		}
 
+		// Per-IP cap on invalid tracking requests. Read-only, cheap, and fires
+		// BEFORE any DB lookup so a rotating test_id attack cannot fan out
+		// assignment DB reads (Issue #31).
+		if ( $this->invalid_request_cap_exceeded() ) {
+			status_header( 429 );
+			wp_send_json_error(
+				array( 'message' => __( 'Rate limit exceeded. Please try again later.', 'elementtest-pro' ) )
+			);
+		}
+
 		// Verify the test is currently running.
 		$test_status = $wpdb->get_var(
 			$wpdb->prepare(
@@ -1769,6 +1894,7 @@ class ElementTest_Ajax_Handler {
 		);
 
 		if ( 'running' !== $test_status ) {
+			$this->record_invalid_request();
 			wp_send_json_error(
 				array( 'message' => __( 'This test is not currently running.', 'elementtest-pro' ) )
 			);
