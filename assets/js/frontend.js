@@ -1513,13 +1513,11 @@ try {
 	}
 
 	/**
-	 * Process conversion-only tests (cross-page pageview and add-to-cart goals).
+	 * Process conversion-only tests (cross-page pageview goals).
 	 *
 	 * When a user lands on a page that matches a pageview goal from a test
 	 * running on a different page, the server sends minimal test data here.
 	 * We read the variant assignment from the cookie and fire the conversion.
-	 *
-	 * For add_to_cart goals, we set up listeners instead of firing immediately.
 	 */
 	function processConversionOnlyTests() {
 		var tests = elementtestFrontend.conversionOnlyTests;
@@ -1556,23 +1554,12 @@ try {
 				var goals = test.goals;
 				for ( var g = 0; g < goals.length; g++ ) {
 					var goal = goals[ g ];
-
-					if ( goal.trigger_type === 'add_to_cart' ) {
-						setupAddToCartGoal(
-							testId,
-							assignedVariantId,
-							goal.conversion_id,
-							goal.revenue_value || 0,
-							goal.trigger_selector || ''
-						);
-					} else {
-						trackConversion(
-							testId,
-							assignedVariantId,
-							goal.conversion_id,
-							goal.revenue_value || 0
-						);
-					}
+					trackConversion(
+						testId,
+						assignedVariantId,
+						goal.conversion_id,
+						goal.revenue_value || 0
+					);
 				}
 			} catch ( err ) {
 				if ( typeof console !== 'undefined' && console.warn ) {

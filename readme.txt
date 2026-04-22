@@ -3,7 +3,7 @@ Contributors: Doug Wagner
 Tags: ab-testing, split-testing, conversion, optimization, analytics
 Requires at least: 5.6
 Tested up to: 6.7
-Stable tag: 2.3.6
+Stable tag: 2.3.7
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -45,6 +45,10 @@ Yes, ElementTest Pro is designed to work with popular page builders like Element
 All testing data is stored in your WordPress database. No external services are used.
 
 == Changelog ==
+
+= 2.3.7 =
+* Fix: Availability regression in the 2.3.6 invalid-request cap. The cap keyed its transient on the raw resolved visitor IP, so on proxy setups where `REMOTE_ADDR` collapses to a private/reserved address (e.g. `10.x.x.x`, `172.16.x.x`, `192.168.x.x`, loopback) many visitors shared a single bucket and enough invalid requests would lock legitimate users out of `get_variant_assignment`, `track_impression`, and `track_conversion` for up to an hour.
+* The invalid-request cap now gates its transient key on `FILTER_VALIDATE_IP` with `FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE`. When the resolved IP is not publicly routable the cap is bypassed entirely (read and write). Per-test rate limiting for validated traffic is unaffected.
 
 = 2.3.6 =
 * Security: Close unauthenticated DB write amplification / DoS on public tracking endpoints (Issue #31). Test/variant/conversion-goal/page-scope validation now runs BEFORE the per-(IP, test_id, event) rate-limit write, so a rotating `test_id` attack can no longer fan out transients or DB lookups. A new per-IP cap on invalid tracking requests fires at the top of every public tracking endpoint, keyed on IP only (one transient per IP regardless of how many attacker-controlled parameters get rotated). Filter `elementtest_invalid_request_cap` (default 30/hour) tunes the threshold. Affects `track_impression`, `track_conversion`, and `get_variant_assignment`.

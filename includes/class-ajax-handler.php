@@ -1749,8 +1749,13 @@ class ElementTest_Ajax_Handler {
 			return false;
 		}
 
-		$ip  = ElementTest_Visitor::get_visitor_ip();
-		$key = 'etrl_bad_' . substr( hash( 'sha256', (string) $ip ), 0, 40 );
+		$key = $this->get_invalid_request_cap_key();
+		if ( '' === $key ) {
+			// Avoid global throttling when the resolved address is non-routable
+			// (for example a shared reverse-proxy REMOTE_ADDR).
+			return false;
+		}
+
 		$now = time();
 
 		$bucket = get_transient( $key );
@@ -1780,8 +1785,11 @@ class ElementTest_Ajax_Handler {
 	 * @since 2.3.6
 	 */
 	private function record_invalid_request() {
-		$ip             = ElementTest_Visitor::get_visitor_ip();
-		$key            = 'etrl_bad_' . substr( hash( 'sha256', (string) $ip ), 0, 40 );
+		$key            = $this->get_invalid_request_cap_key();
+		if ( '' === $key ) {
+			return;
+		}
+
 		$window_seconds = HOUR_IN_SECONDS;
 		$now            = time();
 
@@ -1811,6 +1819,32 @@ class ElementTest_Ajax_Handler {
 			),
 			$remaining_ttl
 		);
+	}
+
+	/**
+	 * Build the invalid-request cap transient key when IP scoping is reliable.
+	 *
+	 * The invalid-request cap is intentionally skipped when the resolved visitor
+	 * IP is private/reserved/non-routable because those addresses are commonly
+	 * shared by many visitors behind a reverse proxy.
+	 *
+	 * @since  2.3.7
+	 * @return string Empty string when invalid-cap throttling should be bypassed.
+	 */
+	private function get_invalid_request_cap_key() {
+		$ip = ElementTest_Visitor::get_visitor_ip();
+
+		$public_ip = filter_var(
+			$ip,
+			FILTER_VALIDATE_IP,
+			FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE
+		);
+
+		if ( false === $public_ip ) {
+			return '';
+		}
+
+		return 'etrl_bad_' . substr( hash( 'sha256', (string) $public_ip ), 0, 40 );
 	}
 
 	/**

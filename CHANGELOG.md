@@ -2,6 +2,11 @@
 
 `readme.txt` remains the canonical WordPress.org release history for this plugin. This file mirrors the shipped release notes in a GitHub-friendly format.
 
+## 2.3.7
+
+- Fix: Availability regression in the 2.3.6 invalid-request cap. The cap keyed its transient on the raw resolved visitor IP, so on proxy setups where `REMOTE_ADDR` collapses to a private/reserved address (e.g. `10.x.x.x`, `172.16.x.x`, `192.168.x.x`, loopback) many visitors shared a single bucket. Enough invalid requests (e.g. stale cached pages sending retired `test_id` values) would trip the cap and lock legitimate users out of `get_variant_assignment`, `track_impression`, and `track_conversion` for up to an hour.
+- The invalid-request cap now gates its transient key on `FILTER_VALIDATE_IP` with `FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE`. When the resolved IP is not publicly routable the cap is bypassed entirely (read and write), so shared-IP proxy setups no longer cross-lockout. Per-test rate limiting for validated traffic is unaffected.
+
 ## 2.3.6
 
 - Security: Close unauthenticated DB write amplification / DoS on public tracking endpoints (Issue #31). Previously, the per-test IP rate limiter ran *before* validating that `test_id` belonged to a real, running test. Because the rate-limit transient key mixes in `$test_id`, an attacker could rotate `test_id` values to get a fresh transient on every request — both evading the cap and creating unbounded rows in `wp_options`.
