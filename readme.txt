@@ -3,7 +3,7 @@ Contributors: Doug Wagner
 Tags: ab-testing, split-testing, conversion, optimization, analytics
 Requires at least: 5.6
 Tested up to: 6.7
-Stable tag: 2.3.7
+Stable tag: 2.3.9
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -45,6 +45,14 @@ Yes, ElementTest Pro is designed to work with popular page builders like Element
 All testing data is stored in your WordPress database. No external services are used.
 
 == Changelog ==
+
+= 2.3.9 =
+* Fix: Enforce path boundary in wildcard pageview goal matching in the frontend JavaScript (`setupPageviewGoal`). A wildcard like `/shop/*` no longer incorrectly matches `/shopping` or `/shop-archive` on the client. The same boundary behavior existed on the server since 2.2.6 and in frontend test detection since 2.3.8, but was missing from the pageview goal listener until now.
+* Fix: Keep the frontend script VERSION marker aligned with the plugin release.
+
+= 2.3.8 =
+* Fix: Duplicate Test now copies conversion goals (all goal types), not only variants — duplicated tests no longer lose click, pageview, form, custom event, video, or add-to-cart goal configuration.
+* Fix: Enforce path boundary in wildcard pageview goal detection so a trigger like `/shop/*` no longer incorrectly matches `/shopping` or `/shop-archive` when determining cross-page conversion-only tests (aligns with server-side matching from 2.2.6).
 
 = 2.3.7 =
 * Fix: Availability regression in the 2.3.6 invalid-request cap. The cap keyed its transient on the raw resolved visitor IP, so on proxy setups where `REMOTE_ADDR` collapses to a private/reserved address (e.g. `10.x.x.x`, `172.16.x.x`, `192.168.x.x`, loopback) many visitors shared a single bucket and enough invalid requests would lock legitimate users out of `get_variant_assignment`, `track_impression`, and `track_conversion` for up to an hour.

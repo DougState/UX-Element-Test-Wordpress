@@ -233,7 +233,8 @@ class ElementTest_Frontend {
 				if ( substr( $trigger, -1 ) === '*' ) {
 					$prefix = substr( $trigger, 0, -1 );
 					$trigger_path = $this->normalise_path( $prefix );
-					$matched = strpos( $current_path, $trigger_path ) === 0;
+					$matched = ( $current_path === $trigger_path )
+						|| strpos( $current_path, $trigger_path . '/' ) === 0;
 					if ( ! $matched ) {
 						$matched = strpos( $current_url, $prefix ) === 0;
 					}

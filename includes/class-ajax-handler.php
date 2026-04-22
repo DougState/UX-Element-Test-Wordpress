@@ -2112,8 +2112,9 @@ class ElementTest_Ajax_Handler {
 			wp_send_json_error( __( 'Invalid test ID.', 'elementtest-pro' ) );
 		}
 
-		$tests_table    = $wpdb->prefix . 'elementtest_tests';
-		$variants_table = $wpdb->prefix . 'elementtest_variants';
+		$tests_table       = $wpdb->prefix . 'elementtest_tests';
+		$variants_table    = $wpdb->prefix . 'elementtest_variants';
+		$conversions_table = $wpdb->prefix . 'elementtest_conversions';
 
 		// Get the original test.
 		$test = $wpdb->get_row(
@@ -2168,6 +2169,28 @@ class ElementTest_Ajax_Handler {
 					'created_at'         => $now,
 				),
 				array( '%d', '%s', '%s', '%d', '%d', '%s' )
+			);
+		}
+
+		// Duplicate conversion goals.
+		$goals = $wpdb->get_results(
+			$wpdb->prepare( "SELECT * FROM {$conversions_table} WHERE test_id = %d", $test_id ),
+			ARRAY_A
+		);
+
+		foreach ( $goals as $goal ) {
+			$wpdb->insert(
+				$conversions_table,
+				array(
+					'test_id'          => $new_test_id,
+					'name'             => $goal['name'],
+					'trigger_type'     => $goal['trigger_type'],
+					'trigger_selector' => $goal['trigger_selector'],
+					'trigger_event'    => $goal['trigger_event'],
+					'revenue_value'    => $goal['revenue_value'],
+					'created_at'       => $now,
+				),
+				array( '%d', '%s', '%s', '%s', '%s', '%f', '%s' )
 			);
 		}
 

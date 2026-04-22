@@ -2,6 +2,16 @@
 
 `readme.txt` remains the canonical WordPress.org release history for this plugin. This file mirrors the shipped release notes in a GitHub-friendly format.
 
+## 2.3.9
+
+- Fix: Enforce path boundary in wildcard pageview goal matching in the frontend JavaScript (`setupPageviewGoal` in `frontend.js`). A wildcard trigger like `/shop/*` previously matched `/shopping` or `/shop-archive` on the client because the listener used a loose prefix check. The fix normalizes the trigger (trailing slash handling) and requires either an exact match or a `/` path boundary after the prefix — consistent with `conversion_page_matches()` (2.2.6) and `detect_pageview_goal_tests()` in `class-frontend.php` (2.3.8), but missing from the client-side pageview goal path until now.
+- Fix: The bundled `frontend.js` release `VERSION` constant now tracks the plugin version (it had fallen behind).
+
+## 2.3.8
+
+- Fix: Duplicate Test now copies conversion goals. Previously, `duplicate_test()` only cloned variants from `wp_elementtest_variants`; rows in `wp_elementtest_conversions` (click, pageview, form submit, custom event, video play, and add-to-cart goals, including triggers and revenue) were not duplicated, so copied tests required manual goal reconfiguration.
+- Fix: Enforce path boundary in wildcard pageview goal detection (`detect_pageview_goal_tests()` in `class-frontend.php`) so a trigger like `/shop/*` no longer incorrectly matches `/shopping` or `/shop-archive` when resolving cross-page conversion-only tests. Matches the boundary logic already used in `conversion_page_matches()` since 2.2.6.
+
 ## 2.3.7
 
 - Fix: Availability regression in the 2.3.6 invalid-request cap. The cap keyed its transient on the raw resolved visitor IP, so on proxy setups where `REMOTE_ADDR` collapses to a private/reserved address (e.g. `10.x.x.x`, `172.16.x.x`, `192.168.x.x`, loopback) many visitors shared a single bucket. Enough invalid requests (e.g. stale cached pages sending retired `test_id` values) would trip the cap and lock legitimate users out of `get_variant_assignment`, `track_impression`, and `track_conversion` for up to an hour.

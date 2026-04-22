@@ -31,7 +31,7 @@ try {
 	// Constants & State
 	// =========================================================================
 
-	var VERSION = '2.3.6';
+	var VERSION = '2.3.9';
 	var OBSERVER_TIMEOUT = 8000; // Max time (ms) to wait for elements via MutationObserver.
 	var ANTIFLICKER_TIMEOUT = 3000; // Max time (ms) before forcing anti-flicker removal.
 
@@ -615,10 +615,14 @@ try {
 		// Normalize the trigger URL by trimming whitespace.
 		triggerUrl = triggerUrl.replace( /^\s+|\s+$/g, '' );
 
-		// Check for wildcard match (e.g., "/thank-you*").
+		// Check for wildcard match (e.g., "/thank-you/*").
+		// Enforce path boundary so /shop/* does not match /shopping.
 		if ( triggerUrl.charAt( triggerUrl.length - 1 ) === '*' ) {
 			var prefix = triggerUrl.substring( 0, triggerUrl.length - 1 );
-			matched = currentPath.indexOf( prefix ) === 0 || currentUrl.indexOf( prefix ) === 0;
+			var prefixNoSlash = prefix.replace( /\/+$/, '' );
+			matched = ( currentPath === prefixNoSlash )
+				|| ( currentPath.indexOf( prefixNoSlash + '/' ) === 0 )
+				|| ( currentUrl.indexOf( prefix ) === 0 );
 		} else {
 			// Exact match against path or full URL.
 			matched = ( currentPath === triggerUrl ) || ( currentUrl === triggerUrl );
