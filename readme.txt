@@ -14,6 +14,8 @@ A/B test various elements of your WordPress pages and track conversion data to m
 
 ElementTest Pro allows you to A/B test various elements (CSS, copy, JS, images) of your WordPress pages and includes conversion data to measure performance when they are tested against each other.
 
+Source code: https://github.com/DougState/UX-Element-Test-Wordpress
+
 **Features:**
 
 * Visual element selector

@@ -1,7 +1,7 @@
 <?php
 /**
  * Plugin Name: ElementTest Pro
- * Plugin URI: https://github.com/DougState/elementtest-pro
+ * Plugin URI: https://github.com/DougState/UX-Element-Test-Wordpress
  * Description: A/B test various elements (CSS, copy, JS, images) of your pages and track conversion data to measure performance.
  * Version: 2.4.0
  * Requires at least: 5.6
