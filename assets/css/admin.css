@@ -1,0 +1,593 @@
+/**
+ * ElementTest Pro - Admin Styles
+ *
+ * @package ElementTestPro
+ * @since   1.0.0
+ */
+
+/* ==========================================================================
+   General / Shared
+   ========================================================================== */
+
+.elementtest-admin-wrapper {
+	max-width: 1200px;
+	margin: 20px 0;
+}
+
+.elementtest-admin-wrapper .card {
+	margin-bottom: 20px;
+}
+
+.elementtest-admin-wrapper .card h2,
+.elementtest-admin-wrapper .card h3 {
+	margin-top: 0;
+}
+
+.elementtest-admin-wrapper ul {
+	list-style: disc;
+	padding-left: 20px;
+}
+
+.elementtest-admin-wrapper ul li {
+	margin-bottom: 8px;
+}
+
+/* ==========================================================================
+   New Test Form - Layout
+   ========================================================================== */
+
+.elementtest-wrap .elementtest-admin-wrapper {
+	max-width: 960px;
+}
+
+.elementtest-wrap .postbox {
+	margin-bottom: 20px;
+}
+
+.elementtest-wrap .postbox .inside {
+	padding: 12px 16px 16px;
+	margin: 0;
+}
+
+.elementtest-wrap .postbox-header {
+	border-bottom: 1px solid #c3c4c7;
+}
+
+.elementtest-wrap .postbox-header h2.hndle {
+	padding: 10px 16px;
+	margin: 0;
+	font-size: 14px;
+	font-weight: 600;
+	line-height: 1.4;
+}
+
+/* Required field asterisk */
+.elementtest-wrap .required {
+	color: #d63638;
+	font-weight: 700;
+	margin-left: 2px;
+}
+
+/* Input groups (input + button side by side) */
+.elementtest-input-group {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+}
+
+.elementtest-input-group .regular-text {
+	flex: 1;
+}
+
+/* ==========================================================================
+   Section 2 - Element Path
+   ========================================================================== */
+
+.elementtest-element-path {
+	background: #f0f0f1;
+	border: 1px solid #c3c4c7;
+	border-radius: 4px;
+	padding: 8px 12px;
+	font-family: Consolas, Monaco, monospace;
+	font-size: 13px;
+	min-height: 20px;
+	color: #3c434a;
+}
+
+.elementtest-element-path .elementtest-path-empty {
+	color: #a7aaad;
+	font-style: italic;
+	font-family: inherit;
+}
+
+.elementtest-element-path .elementtest-path-separator {
+	color: #a7aaad;
+	margin: 0 4px;
+}
+
+.elementtest-element-path .elementtest-path-node {
+	color: #2271b1;
+}
+
+.elementtest-element-path .elementtest-path-node:last-child {
+	color: #1d2327;
+	font-weight: 600;
+}
+
+/* ==========================================================================
+   Section 3 - Variants
+   ========================================================================== */
+
+.elementtest-variant {
+	background: #fff;
+	border: 1px solid #c3c4c7;
+	border-radius: 4px;
+	margin-bottom: 16px;
+	overflow: hidden;
+}
+
+.elementtest-variant:last-child {
+	margin-bottom: 12px;
+}
+
+.elementtest-variant-header {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	padding: 10px 16px;
+	background: #f6f7f7;
+	border-bottom: 1px solid #dcdcde;
+}
+
+.elementtest-variant-badge {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 28px;
+	height: 28px;
+	border-radius: 50%;
+	background: #2271b1;
+	color: #fff;
+	font-weight: 700;
+	font-size: 13px;
+	flex-shrink: 0;
+}
+
+.elementtest-badge-control {
+	background: #00a32a;
+}
+
+.elementtest-variant-label {
+	color: #a7aaad;
+	font-style: italic;
+	font-size: 13px;
+}
+
+.elementtest-variant-control .elementtest-variant-header {
+	background: #f0f6e8;
+	border-bottom-color: #c6d9ae;
+}
+
+.elementtest-variant-control {
+	border-color: #c6d9ae;
+}
+
+.elementtest-variant-body {
+	padding: 0 8px;
+}
+
+.elementtest-variant-body .form-table th {
+	width: 180px;
+	padding: 12px 10px 12px 8px;
+}
+
+.elementtest-variant-body .form-table td {
+	padding: 10px;
+}
+
+.elementtest-remove-variant,
+.elementtest-remove-goal {
+	margin-left: auto !important;
+	color: #b32d2e !important;
+	text-decoration: none !important;
+	cursor: pointer;
+}
+
+.elementtest-remove-variant:hover,
+.elementtest-remove-goal:hover {
+	color: #d63638 !important;
+}
+
+.elementtest-remove-variant .dashicons,
+.elementtest-remove-goal .dashicons {
+	font-size: 18px;
+	width: 18px;
+	height: 18px;
+}
+
+/* Code editor textareas */
+.elementtest-code-editor {
+	font-family: Consolas, Monaco, "Andale Mono", "Ubuntu Mono", monospace;
+	font-size: 13px;
+	line-height: 1.5;
+	tab-size: 4;
+	background: #f6f7f7;
+	border-color: #c3c4c7;
+	resize: vertical;
+}
+
+.elementtest-code-editor:focus {
+	background: #fff;
+	border-color: #2271b1;
+	box-shadow: 0 0 0 1px #2271b1;
+}
+
+/* ==========================================================================
+   Traffic Allocation Bar
+   ========================================================================== */
+
+.elementtest-traffic-bar-wrapper {
+	margin: 16px 0 12px;
+}
+
+.elementtest-traffic-bar-wrapper > label {
+	display: block;
+	font-weight: 600;
+	margin-bottom: 8px;
+	font-size: 13px;
+}
+
+.elementtest-traffic-bar {
+	display: flex;
+	height: 32px;
+	border-radius: 4px;
+	overflow: hidden;
+	border: 1px solid #c3c4c7;
+}
+
+.elementtest-traffic-segment {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	color: #fff;
+	font-size: 12px;
+	font-weight: 600;
+	min-width: 40px;
+	transition: width 0.3s ease;
+	position: relative;
+}
+
+.elementtest-traffic-segment span {
+	white-space: nowrap;
+	text-shadow: 0 1px 1px rgba(0, 0, 0, 0.2);
+}
+
+.elementtest-traffic-segment-control {
+	background: #00a32a;
+}
+
+/* Variant color palette */
+.elementtest-traffic-segment:nth-child(2) {
+	background: #2271b1;
+}
+
+.elementtest-traffic-segment:nth-child(3) {
+	background: #9b59b6;
+}
+
+.elementtest-traffic-segment:nth-child(4) {
+	background: #e67e22;
+}
+
+.elementtest-traffic-segment:nth-child(5) {
+	background: #1abc9c;
+}
+
+.elementtest-traffic-segment:nth-child(6) {
+	background: #e74c3c;
+}
+
+.elementtest-traffic-segment:nth-child(n+7) {
+	background: #7f8c8d;
+}
+
+/* ==========================================================================
+   Section 4 - Goals
+   ========================================================================== */
+
+.elementtest-goal {
+	background: #fff;
+	border: 1px solid #c3c4c7;
+	border-radius: 4px;
+	margin-bottom: 16px;
+	overflow: hidden;
+}
+
+.elementtest-goal:last-child {
+	margin-bottom: 12px;
+}
+
+.elementtest-goal-header {
+	display: flex;
+	align-items: center;
+	padding: 10px 16px;
+	background: #f6f7f7;
+	border-bottom: 1px solid #dcdcde;
+}
+
+.elementtest-goal-number {
+	font-weight: 600;
+	font-size: 13px;
+}
+
+.elementtest-goal-body {
+	padding: 0 8px;
+}
+
+.elementtest-goal-body .form-table th {
+	width: 180px;
+	padding: 12px 10px 12px 8px;
+}
+
+.elementtest-goal-body .form-table td {
+	padding: 10px;
+}
+
+/* ==========================================================================
+   Section Actions (Add Variant / Add Goal buttons)
+   ========================================================================== */
+
+.elementtest-section-actions {
+	display: flex;
+	gap: 8px;
+	margin: 0;
+	padding-top: 4px;
+}
+
+.elementtest-section-actions .button .dashicons {
+	font-size: 16px;
+	width: 16px;
+	height: 16px;
+}
+
+/* ==========================================================================
+   Form Actions (Save / Start buttons)
+   ========================================================================== */
+
+.elementtest-form-actions {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	padding: 16px 0;
+	margin-top: 4px;
+}
+
+.elementtest-actions-right {
+	display: flex;
+	gap: 8px;
+}
+
+.elementtest-form-actions .button-large {
+	padding: 4px 16px;
+	height: auto;
+	line-height: 2;
+}
+
+.elementtest-form-actions .button-large .dashicons {
+	font-size: 16px;
+	width: 16px;
+	height: 16px;
+}
+
+/* ==========================================================================
+   Saving Indicator
+   ========================================================================== */
+
+.elementtest-saving-indicator {
+	position: fixed;
+	bottom: 30px;
+	right: 30px;
+	background: #fff;
+	border: 1px solid #c3c4c7;
+	border-radius: 4px;
+	padding: 12px 20px;
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+	z-index: 100000;
+}
+
+.elementtest-saving-indicator .spinner {
+	float: none;
+	margin: 0;
+}
+
+.elementtest-saving-indicator.elementtest-save-success {
+	border-left: 4px solid #00a32a;
+}
+
+.elementtest-saving-indicator.elementtest-save-error {
+	border-left: 4px solid #d63638;
+}
+
+/* ==========================================================================
+   Page Browse Modal
+   ========================================================================== */
+
+.elementtest-modal {
+	position: fixed;
+	top: 0;
+	left: 0;
+	right: 0;
+	bottom: 0;
+	z-index: 100050;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+}
+
+.elementtest-modal-backdrop {
+	position: absolute;
+	top: 0;
+	left: 0;
+	right: 0;
+	bottom: 0;
+	background: rgba(0, 0, 0, 0.5);
+}
+
+.elementtest-modal-content {
+	position: relative;
+	background: #fff;
+	border-radius: 4px;
+	box-shadow: 0 4px 24px rgba(0, 0, 0, 0.2);
+	width: 90%;
+	max-width: 560px;
+	max-height: 80vh;
+	display: flex;
+	flex-direction: column;
+	z-index: 1;
+}
+
+.elementtest-modal-header {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	padding: 16px 20px;
+	border-bottom: 1px solid #dcdcde;
+}
+
+.elementtest-modal-header h3 {
+	margin: 0;
+	font-size: 16px;
+	line-height: 1.4;
+}
+
+.elementtest-modal-close {
+	background: none;
+	border: none;
+	font-size: 24px;
+	cursor: pointer;
+	color: #3c434a;
+	line-height: 1;
+	padding: 0 4px;
+}
+
+.elementtest-modal-close:hover {
+	color: #d63638;
+}
+
+.elementtest-modal-body {
+	padding: 20px;
+	overflow-y: auto;
+	flex: 1;
+}
+
+.elementtest-modal-body input[type="search"] {
+	width: 100%;
+	margin-bottom: 12px;
+}
+
+.elementtest-modal-footer {
+	padding: 12px 20px;
+	border-top: 1px solid #dcdcde;
+	text-align: right;
+}
+
+/* Page search results */
+.elementtest-page-results {
+	max-height: 320px;
+	overflow-y: auto;
+	border: 1px solid #dcdcde;
+	border-radius: 4px;
+}
+
+.elementtest-page-results .description {
+	padding: 12px;
+	margin: 0;
+	text-align: center;
+}
+
+.elementtest-page-result-item {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	padding: 10px 14px;
+	border-bottom: 1px solid #f0f0f1;
+	cursor: pointer;
+	transition: background 0.15s;
+}
+
+.elementtest-page-result-item:last-child {
+	border-bottom: none;
+}
+
+.elementtest-page-result-item:hover {
+	background: #f0f6fc;
+}
+
+.elementtest-page-result-item:focus {
+	background: #f0f6fc;
+	outline: 2px solid #2271b1;
+	outline-offset: -2px;
+}
+
+.elementtest-page-result-title {
+	font-weight: 600;
+	font-size: 13px;
+}
+
+.elementtest-page-result-url {
+	color: #a7aaad;
+	font-size: 12px;
+	margin-left: 12px;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	max-width: 200px;
+}
+
+/* ==========================================================================
+   Responsive adjustments
+   ========================================================================== */
+
+@media screen and (max-width: 782px) {
+	.elementtest-input-group {
+		flex-direction: column;
+		align-items: stretch;
+	}
+
+	.elementtest-variant-header {
+		flex-wrap: wrap;
+	}
+
+	.elementtest-variant-body .form-table th,
+	.elementtest-goal-body .form-table th {
+		width: auto;
+		padding-bottom: 4px;
+	}
+
+	.elementtest-form-actions {
+		flex-direction: column;
+		gap: 12px;
+	}
+
+	.elementtest-actions-left,
+	.elementtest-actions-right {
+		width: 100%;
+	}
+
+	.elementtest-actions-right {
+		justify-content: flex-end;
+	}
+
+	.elementtest-form-actions .button-large {
+		flex: 1;
+		text-align: center;
+	}
+
+	.elementtest-modal-content {
+		width: 95%;
+		max-height: 90vh;
+	}
+}
