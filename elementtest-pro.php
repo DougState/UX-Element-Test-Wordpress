@@ -7,8 +7,8 @@
  * Requires at least: 5.6
  * Tested up to: 6.9
  * Requires PHP: 7.4
- * Author: Elimstat Dev Ops
- * Author URI: https://elimstat.com
+ * Author: Doug Wagner
+ * Author URI: https://dougstate.com
  * License: GPL v2 or later
  * License URI: https://www.gnu.org/licenses/gpl-2.0.html
  * Text Domain: elementtest-pro
