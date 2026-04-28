@@ -10,12 +10,6 @@ Release history lives in `readme.txt` for WordPress.org and is mirrored in `CHAN
 2. Activate the plugin through the 'Plugins' menu in WordPress
 3. Navigate to 'ElementTest' in the WordPress admin menu to get started
 
-## Building the Plugin Zip
-
-Run the Cursor command `/zip-plugin` (defined in `.cursor/rules/zip-plugin.mdc`) to produce a production-ready zip. The output file is placed in the project root as `elementtest-pro-<version>.zip` (e.g. `elementtest-pro-1.2.3.zip`).
-
-Zip files and the `my-plugin/` staging directory are excluded from version control via `.gitignore`.
-
 ## Features
 
 - A/B testing for page elements (CSS, copy, JavaScript, image variants)
