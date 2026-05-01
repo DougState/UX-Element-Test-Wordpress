@@ -3,7 +3,7 @@ Contributors: desigstate
 Tags: ab-testing, split-testing, conversion, optimization, analytics
 Requires at least: 5.6
 Tested up to: 6.9
-Stable tag: 2.4.1
+Stable tag: 2.4.2
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -78,6 +78,10 @@ Bug fixes for wildcard pageview goal matching on the frontend and a corrected Pl
 Security release: closes an unauthenticated DB write amplification / DoS vector on public tracking endpoints. Recommended for all users.
 
 == Changelog ==
+
+= 2.4.2 =
+* Fix: JavaScript variant `changes` source is no longer mangled on save. The plugin previously applied `wp_kses_post()` uniformly to the `changes` column for every test type, but `changes` is polymorphic — it holds CSS rules, HTML, JavaScript source, or an image URL depending on `test_type`. Running JS source through `wp_kses_post()` parses it as HTML, rebalances/strips `<`, `>`, and `&` (e.g. operators like `>=`, string literals containing `<div>...</div>`, or `&middot;` entities), and produces source that throws `SyntaxError` at parse time when the variant's `<script>` is appended. Sanitization is now branched on `test_type` via a new `sanitize_variant_changes()` helper: `copy` continues to use `wp_kses_post()`, `image` uses `esc_url_raw()`, and `css`/`js` are stored as raw source. Both call sites (`save_test()`, `import_tests()`) are gated by `manage_options`, the same capability WordPress already requires for arbitrary code via Plugins / Theme Editor, so no trust-surface change.
+* Note: existing `js` variants saved on 2.4.1 or earlier are still mangled in the database. Re-save each affected variant after upgrading, or use the new `wp elementtest fix-variant-changes` command (added in 2.4.3) to repair them in bulk.
 
 = 2.4.1 =
 * Fix: Full-URL wildcard pageview triggers (PR #43). A prefix like `https://example.com/shop/*` could previously match sibling paths like `/shopping` because the listener fell back to a loose full-URL `indexOf` check. The trigger is now resolved to its `URL.pathname` and matched with the same path-boundary rules as path-only wildcards (`/shop/*`); the full-URL fallback only applies when the prefix explicitly includes `?` or `#`. Mirrors the same change in `detect_pageview_goal_tests()`.

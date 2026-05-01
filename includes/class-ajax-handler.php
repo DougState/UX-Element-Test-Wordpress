@@ -204,6 +204,50 @@ class ElementTest_Ajax_Handler {
 		}
 	}
 
+	/**
+	 * Sanitize the variant `changes` payload according to the test type.
+	 *
+	 * The `changes` column is polymorphic — its content type depends on
+	 * `test_type`. Applying `wp_kses_post()` uniformly (the pre-2.4.2
+	 * behavior) corrupts JS source whenever it contains `<`, `>`, `&`, or
+	 * HTML-looking string literals: kses parses the JS as HTML and
+	 * rebalances/strips tokens, producing source that throws
+	 * `SyntaxError` at parse time.
+	 *
+	 * Both call sites (`save_test()` and `import_tests()`) are gated by
+	 * `verify_admin_request()` which requires `manage_options`. That is
+	 * the same capability WordPress already grants for arbitrary code via
+	 * Plugins / Theme Editor, so storing raw CSS/JS does not expand the
+	 * trust surface — it just stops mangling the content the admin
+	 * deliberately submitted.
+	 *
+	 * Callers must hand in already-unslashed input.
+	 *
+	 * @since 2.4.2
+	 *
+	 * @param mixed  $raw_changes Unslashed `changes` value submitted by the admin.
+	 * @param string $test_type   One of `css`, `copy`, `js`, `image`.
+	 * @return string Sanitized value safe for storage.
+	 */
+	private function sanitize_variant_changes( $raw_changes, $test_type ) {
+		if ( ! is_string( $raw_changes ) ) {
+			return '';
+		}
+
+		switch ( $test_type ) {
+			case 'image':
+				return esc_url_raw( $raw_changes );
+
+			case 'copy':
+				return wp_kses_post( $raw_changes );
+
+			case 'css':
+			case 'js':
+			default:
+				return $raw_changes;
+		}
+	}
+
 	// =========================================================================
 	// Test CRUD
 	// =========================================================================
@@ -356,7 +400,10 @@ class ElementTest_Ajax_Handler {
 			foreach ( $_POST['variants'] as $variant_data ) {
 				$v_id      = isset( $variant_data['variant_id'] ) ? absint( $variant_data['variant_id'] ) : 0;
 				$v_name    = isset( $variant_data['name'] ) ? sanitize_text_field( wp_unslash( $variant_data['name'] ) ) : '';
-				$v_changes = isset( $variant_data['changes'] ) ? wp_kses_post( wp_unslash( $variant_data['changes'] ) ) : '';
+				$v_changes = $this->sanitize_variant_changes(
+					isset( $variant_data['changes'] ) ? wp_unslash( $variant_data['changes'] ) : '',
+					$test_type
+				);
 				$v_traffic = isset( $variant_data['traffic'] ) ? absint( $variant_data['traffic'] ) : 50;
 				$v_control = isset( $variant_data['is_control'] ) ? absint( $variant_data['is_control'] ) : 0;
 
@@ -2658,7 +2705,10 @@ class ElementTest_Ajax_Handler {
 						array(
 							'test_id'            => $new_test_id,
 							'name'               => $v_name,
-							'changes'            => isset( $variant['changes'] ) ? wp_kses_post( $variant['changes'] ) : '',
+							'changes'            => $this->sanitize_variant_changes(
+								isset( $variant['changes'] ) ? $variant['changes'] : '',
+								$test_type
+							),
 							'traffic_percentage' => isset( $variant['traffic_percentage'] ) ? min( 100, max( 0, absint( $variant['traffic_percentage'] ) ) ) : 50,
 							'is_control'         => isset( $variant['is_control'] ) ? absint( $variant['is_control'] ) : 0,
 							'created_at'         => $now,
