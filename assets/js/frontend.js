@@ -31,7 +31,7 @@ try {
 	// Constants & State
 	// =========================================================================
 
-	var VERSION = '2.4.0';
+	var VERSION = '2.4.1';
 	var OBSERVER_TIMEOUT = 8000; // Max time (ms) to wait for elements via MutationObserver.
 	var ANTIFLICKER_TIMEOUT = 3000; // Max time (ms) before forcing anti-flicker removal.
 
@@ -619,10 +619,22 @@ try {
 		// Enforce path boundary so /shop/* does not match /shopping.
 		if ( triggerUrl.charAt( triggerUrl.length - 1 ) === '*' ) {
 			var prefix = triggerUrl.substring( 0, triggerUrl.length - 1 );
-			var prefixNoSlash = prefix.replace( /\/+$/, '' );
+			var prefixPath;
+
+			try {
+				prefixPath = new URL( prefix, window.location.origin ).pathname;
+			} catch ( e ) {
+				prefixPath = prefix;
+			}
+
+			var prefixNoSlash = prefixPath.replace( /\/+$/, '' ) || '/';
 			matched = ( currentPath === prefixNoSlash )
-				|| ( currentPath.indexOf( prefixNoSlash + '/' ) === 0 )
-				|| ( currentUrl.indexOf( prefix ) === 0 );
+				|| ( prefixNoSlash === '/' )
+				|| ( currentPath.indexOf( prefixNoSlash + '/' ) === 0 );
+
+			if ( ! matched && ( prefix.indexOf( '?' ) !== -1 || prefix.indexOf( '#' ) !== -1 ) ) {
+				matched = currentUrl.indexOf( prefix ) === 0;
+			}
 		} else {
 			// Exact match against path or full URL.
 			matched = ( currentPath === triggerUrl ) || ( currentUrl === triggerUrl );

@@ -2,6 +2,11 @@
 
 `readme.txt` remains the canonical WordPress.org release history for this plugin. This file mirrors the shipped release notes in a GitHub-friendly format.
 
+## 2.4.1
+
+- Fix: Full-URL wildcard pageview triggers (PR #43). A prefix like `https://example.com/shop/*` could previously match sibling paths like `/shopping` because the listener fell back to a loose full-URL `indexOf` check. The trigger is now resolved to its `URL.pathname` and matched with the same path-boundary rules as path-only wildcards (`/shop/*`); the full-URL fallback only applies when the prefix explicitly includes `?` or `#`. Mirrors the same change in `detect_pageview_goal_tests()`.
+- UX: Cap the test results "Performance Over Time" chart at `max-height: 500px` so the chart fits on screen on wide displays.
+
 ## 2.4.0
 
 - Security: Harden AJAX handler (PR #42). Replace `absint`-interpolated `NOT IN (...)` / `IN (...)` fragments with proper `$wpdb->prepare()` dynamic `%d` placeholders when deleting orphaned variants/goals and when exporting multiple tests by ID.

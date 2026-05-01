@@ -452,6 +452,7 @@
 
 .etr-chart-container canvas {
 	width: 100% !important;
+	max-height: 500px;
 	display: block;
 }
 

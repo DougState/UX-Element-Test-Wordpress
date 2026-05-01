@@ -3,7 +3,7 @@ Contributors: desigstate
 Tags: ab-testing, split-testing, conversion, optimization, analytics
 Requires at least: 5.6
 Tested up to: 6.9
-Stable tag: 2.4.0
+Stable tag: 2.4.1
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -78,6 +78,10 @@ Bug fixes for wildcard pageview goal matching on the frontend and a corrected Pl
 Security release: closes an unauthenticated DB write amplification / DoS vector on public tracking endpoints. Recommended for all users.
 
 == Changelog ==
+
+= 2.4.1 =
+* Fix: Full-URL wildcard pageview triggers (PR #43). A prefix like `https://example.com/shop/*` could previously match sibling paths like `/shopping` because the listener fell back to a loose full-URL `indexOf` check. The trigger is now resolved to its `URL.pathname` and matched with the same path-boundary rules as path-only wildcards (`/shop/*`); the full-URL fallback only applies when the prefix explicitly includes `?` or `#`. Mirrors the same change in `detect_pageview_goal_tests()`.
+* UX: Cap the test results "Performance Over Time" chart at `max-height: 500px` so the chart fits on screen on wide displays.
 
 = 2.4.0 =
 * Security: Harden AJAX handler (PR #42) — proper `$wpdb->prepare()` for dynamic ID lists when deleting orphaned variants/goals and when exporting multiple tests; stricter `proxy_page()` URL validation (HTTP/HTTPS only, case-insensitive host match, port allowlist); clamp imported goal `revenue_value` to non-negative.
