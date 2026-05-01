@@ -3,7 +3,7 @@
  * Plugin Name: ElementTest Pro
  * Plugin URI: https://github.com/DougState/UX-Element-Test-Wordpress
  * Description: A/B test various elements (CSS, copy, JS, images) of your pages and track conversion data to measure performance.
- * Version: 2.4.2
+ * Version: 2.4.3
  * Requires at least: 5.6
  * Tested up to: 6.9
  * Requires PHP: 7.4
@@ -35,7 +35,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 // phpcs:disable WordPress.Security.NonceVerification.Recommended
 
 // Define plugin constants
-define( 'ELEMENTTEST_VERSION', '2.4.2' );
+define( 'ELEMENTTEST_VERSION', '2.4.3' );
 define( 'ELEMENTTEST_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'ELEMENTTEST_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
 define( 'ELEMENTTEST_PLUGIN_BASENAME', plugin_basename( __FILE__ ) );

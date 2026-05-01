@@ -2,6 +2,10 @@
 
 `readme.txt` remains the canonical WordPress.org release history for this plugin. This file mirrors the shipped release notes in a GitHub-friendly format.
 
+## 2.4.3
+
+- Tooling: New WP-CLI subcommand `wp elementtest fix-variant-changes` for repairing pre-2.4.2 `wp_kses_post()`-mangled `js` and `css` variant source already in the database. The 2.4.2 fix only stopped *new* saves from being mangled; rows already in `wp_elementtest_variants` stayed corrupted (`>=` stored as `&gt;=`, `&&` as `&amp;&amp;`, `.parent > .child` selectors as `.parent &gt; .child`). The command JOINs `wp_elementtest_variants` to `wp_elementtest_tests`, filters to `test_type` in (`css`, `js`), and decodes only the five HTML entities `wp_kses_post()` produces from JS/CSS tokens (`&amp;`, `&lt;`, `&gt;`, `&quot;`, `&#039;`) — leaving named entities like `&middot;` or `&nbsp;` intact. Defaults to dry-run; `--apply` writes; `--backup=path.json` snapshots affected rows before any UPDATE; `--show-diff` prints up to 10 changed line pairs per variant; `--type=js|css` and `--test-id=N` narrow the scan.
+
 ## 2.4.2
 
 - Fix: JavaScript variant `changes` source is no longer mangled on save. The plugin previously applied `wp_kses_post()` uniformly to the `changes` column for every test type, but `changes` is polymorphic — it holds CSS rules, HTML, JavaScript source, or an image URL depending on `test_type`. Running JS source through `wp_kses_post()` parses it as HTML, rebalances/strips `<`, `>`, and `&` (e.g. operators like `>=`, string literals containing `<div>...</div>`, or `&middot;` entities), and produces source that throws `SyntaxError` at parse time when the variant's `<script>` is appended. Sanitization is now branched on `test_type` via a new `sanitize_variant_changes()` helper: `copy` continues to use `wp_kses_post()`, `image` uses `esc_url_raw()`, and `css`/`js` are stored as raw source. Both call sites (`save_test()`, `import_tests()`) are gated by `manage_options`, the same capability WordPress already requires for arbitrary code via Plugins / Theme Editor, so no trust-surface change.
