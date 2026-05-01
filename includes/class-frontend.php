@@ -390,6 +390,10 @@ class ElementTest_Frontend {
 			'tests'      => $tests_data,
 			'cookieDays' => isset( $settings['cookie_days'] ) ? absint( $settings['cookie_days'] ) : 30,
 			'userHash'   => $this->get_user_hash(),
+			// Gate the ?et_force= query-param override so non-admin visitors
+			// cannot bias real test data by sharing forced URLs. See
+			// assignVariant() in assets/js/frontend.js.
+			'isAdmin'    => current_user_can( 'manage_options' ),
 		);
 
 		if ( ! empty( $this->pageview_goal_tests ) ) {

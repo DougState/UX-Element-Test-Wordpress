@@ -3,7 +3,7 @@ Contributors: desigstate
 Tags: ab-testing, split-testing, conversion, optimization, analytics
 Requires at least: 5.6
 Tested up to: 6.9
-Stable tag: 2.4.3
+Stable tag: 2.4.4
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -78,6 +78,9 @@ Bug fixes for wildcard pageview goal matching on the frontend and a corrected Pl
 Security release: closes an unauthenticated DB write amplification / DoS vector on public tracking endpoints. Recommended for all users.
 
 == Changelog ==
+
+= 2.4.4 =
+* Tooling: Admin-only `?et_force=` query-parameter override for variant assignment. Lets logged-in admins (`manage_options`) deterministically preview any variant for QA — `?et_force=control` selects the Control variant of every test on the page, `?et_force=<variant_id>` selects a specific variant by ID. The forced assignment is written to the existing `elementtest_variant_<test_id>` cookie so it sticks across navigation; remove the cookie (or visit the page without the parameter and let it re-roll) to resume normal random assignment. Useful for QA on tests where the existing 50/50 cookie roll keeps producing the same variant on a single tester's browser. Gated server-side via a new `isAdmin` flag in the localized `elementtestFrontend` payload — non-admin visitors cannot bias real test data via shared URLs (anonymous traffic falls through to the normal weighted random path). Logs the forced assignment to `console.info` (or `console.warn` if the parameter does not match any variant) so DevTools makes the override unambiguous.
 
 = 2.4.3 =
 * Tooling: New WP-CLI subcommand `wp elementtest fix-variant-changes` for repairing pre-2.4.2 `wp_kses_post()`-mangled `js` and `css` variant source already in the database. The 2.4.2 fix only stopped *new* saves from being mangled; rows already in `wp_elementtest_variants` stayed corrupted (`>=` stored as `&gt;=`, `&&` as `&amp;&amp;`, `.parent > .child` selectors as `.parent &gt; .child`). The command JOINs `wp_elementtest_variants` to `wp_elementtest_tests`, filters to `test_type` in (`css`, `js`), and decodes only the five HTML entities `wp_kses_post()` produces from JS/CSS tokens (`&amp;`, `&lt;`, `&gt;`, `&quot;`, `&#039;`) — leaving named entities like `&middot;` or `&nbsp;` intact. Defaults to dry-run; `--apply` writes; `--backup=path.json` snapshots affected rows before any UPDATE; `--show-diff` prints up to 10 changed line pairs per variant; `--type=js|css` and `--test-id=N` narrow the scan.

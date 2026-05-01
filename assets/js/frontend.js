@@ -31,7 +31,7 @@ try {
 	// Constants & State
 	// =========================================================================
 
-	var VERSION = '2.4.3';
+	var VERSION = '2.4.4';
 	var OBSERVER_TIMEOUT = 8000; // Max time (ms) to wait for elements via MutationObserver.
 	var ANTIFLICKER_TIMEOUT = 3000; // Max time (ms) before forcing anti-flicker removal.
 
@@ -90,6 +90,32 @@ try {
 	}
 
 	/**
+	 * Read a query-string parameter from the current URL.
+	 *
+	 * Used by the admin-only ?et_force= override so QA can preview a specific
+	 * variant (or Control) without waiting on a random roll. Returns null when
+	 * the parameter is absent or the URL cannot be parsed.
+	 *
+	 * @param {string} name Parameter name.
+	 * @return {string|null} Parameter value (decoded), or null if absent.
+	 */
+	function getQueryParam( name ) {
+		try {
+			if ( typeof URLSearchParams === 'function' ) {
+				var params = new URLSearchParams( window.location.search );
+				return params.has( name ) ? params.get( name ) : null;
+			}
+		} catch ( e ) {}
+
+		// Fallback for very old browsers without URLSearchParams.
+		var pattern = new RegExp(
+			'[?&]' + name.replace( /[.*+?^${}()|[\]\\]/g, '\\$&' ) + '=([^&]*)'
+		);
+		var match = pattern.exec( window.location.search );
+		return match ? decodeURIComponent( match[ 1 ].replace( /\+/g, ' ' ) ) : null;
+	}
+
+	/**
 	 * Set a cookie with the given name, value, and expiry in days.
 	 *
 	 * @param {string} name  Cookie name.
@@ -132,6 +158,59 @@ try {
 
 		if ( ! variants || variants.length === 0 ) {
 			return null;
+		}
+
+		// -----------------------------------------------------------------
+		// Admin override: ?et_force=control or ?et_force=<variant_id>
+		//
+		// Lets logged-in admins (manage_options) deterministically preview
+		// any variant without waiting on random rolls or repeatedly clearing
+		// cookies. The forced assignment is written to the cookie so it
+		// sticks across navigation; remove the cookie to resume normal
+		// random assignment. Ignored for non-admin visitors so it cannot be
+		// used to bias real test data via shared URLs.
+		// -----------------------------------------------------------------
+		if ( elementtestFrontend.isAdmin ) {
+			var forced = getQueryParam( 'et_force' );
+
+			if ( forced ) {
+				var forcedMatch = null;
+
+				if ( 'control' === forced ) {
+					for ( var f = 0; f < variants.length; f++ ) {
+						if ( parseInt( variants[ f ].is_control, 10 ) === 1 ) {
+							forcedMatch = variants[ f ];
+							break;
+						}
+					}
+				} else {
+					for ( var g = 0; g < variants.length; g++ ) {
+						if ( String( variants[ g ].variant_id ) === String( forced ) ) {
+							forcedMatch = variants[ g ];
+							break;
+						}
+					}
+				}
+
+				if ( forcedMatch ) {
+					setCookie( cookieName, forcedMatch.variant_id, cookieDays );
+					if ( typeof console !== 'undefined' && console.info ) {
+						console.info(
+							'[ElementTest] Test ' + testId + ' forced to "' +
+							forcedMatch.name + '" (variant_id ' + forcedMatch.variant_id +
+							') via ?et_force=' + forced
+						);
+					}
+					return forcedMatch;
+				}
+
+				if ( typeof console !== 'undefined' && console.warn ) {
+					console.warn(
+						'[ElementTest] Test ' + testId + ' has no variant matching ?et_force=' +
+						forced + '; falling back to normal assignment.'
+					);
+				}
+			}
 		}
 
 		// Check for existing cookie (sticky session).
