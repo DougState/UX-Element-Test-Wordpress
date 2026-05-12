@@ -5,29 +5,6 @@
  * Handles all AJAX operations for tests, variants, conversions,
  * and frontend tracking endpoints.
  *
- * Notes for the WordPress.org plugin reviewer
- * -------------------------------------------
- * Every public AJAX endpoint in this file calls one of the helper methods
- * `verify_admin_request()` (line ~143) or `verify_public_request()`
- * (line ~166) as its very first statement. Those helpers run
- * `check_ajax_referer()` and (for admin endpoints) `current_user_can()`
- * and short-circuit with `wp_send_json_error( ..., 403 )` on failure, so
- * by the time any `$_POST`/`$_GET` value is consumed the nonce has
- * already been verified.
- *
- * Plugin Check (PHPCS) cannot follow the indirection through these
- * helpers and therefore reports false positives for
- * `WordPress.Security.NonceVerification.*`. The same is true for the
- * direct-DB rules: every query in this file targets one of the plugin's
- * four custom tables (`{prefix}elementtest_tests`, `_variants`,
- * `_events`, `_conversions`) — they are not WordPress core tables and
- * have no Core API equivalent. Their names are interpolated into the
- * SQL because `$wpdb->prepare()` does not accept placeholders for
- * identifiers; the table names themselves are constructed solely from
- * the trusted `$wpdb->prefix` constant plus a hard-coded suffix.
- *
- * The rules below are disabled at the file level for that reason.
- *
  * @package ElementTestPro
  * @since   1.0.0
  */
@@ -36,15 +13,6 @@
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
-
-// phpcs:disable WordPress.Security.NonceVerification.Missing
-// phpcs:disable WordPress.Security.NonceVerification.Recommended
-// phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery
-// phpcs:disable WordPress.DB.DirectDatabaseQuery.NoCaching
-// phpcs:disable WordPress.DB.PreparedSQL.InterpolatedNotPrepared
-// phpcs:disable PluginCheck.Security.DirectDB.UnescapedDBParameter
-// phpcs:disable WordPress.Security.ValidatedSanitizedInput.MissingUnslash
-// phpcs:disable WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
 
 /**
  * Class ElementTest_Ajax_Handler
@@ -212,7 +180,8 @@ class ElementTest_Ajax_Handler {
 	 * behavior) corrupts JS source whenever it contains `<`, `>`, `&`, or
 	 * HTML-looking string literals: kses parses the JS as HTML and
 	 * rebalances/strips tokens, producing source that throws
-	 * `SyntaxError` at parse time.
+	 * `SyntaxError` at parse time. This was flagged as a Low correctness
+	 * finding in `security-reviews/2026-04-06-class-ajax-handler-v2.2.6.md`.
 	 *
 	 * Both call sites (`save_test()` and `import_tests()`) are gated by
 	 * `verify_admin_request()` which requires `manage_options`. That is
@@ -380,13 +349,16 @@ class ElementTest_Ajax_Handler {
 
 			$result = $wpdb->insert( $table, $data, $format );
 
-		if ( false === $result ) {
-			wp_send_json_error(
-				array( 'message' => __( 'Failed to create test.', 'elementtest-pro' ) )
-			);
-		}
+			if ( false === $result ) {
+				if ( $wpdb->last_error ) {
+					error_log( '[ElementTest] Test insert failed. DB Error: ' . $wpdb->last_error );
+				}
+				wp_send_json_error(
+					array( 'message' => __( 'Failed to create test.', 'elementtest-pro' ) )
+				);
+			}
 
-		$test_id = $wpdb->insert_id;
+			$test_id = $wpdb->insert_id;
 		}
 
 		// Save variants if provided.
@@ -510,11 +482,15 @@ class ElementTest_Ajax_Handler {
 				} else {
 					// Insert new conversion goal.
 					$g_data['created_at'] = current_time( 'mysql', true );
-					$wpdb->insert(
+					$goal_result = $wpdb->insert(
 						$conversions_table,
 						$g_data,
 						array( '%d', '%s', '%s', '%s', '%s', '%f', '%s' )
 					);
+					if ( false === $goal_result ) {
+						error_log( '[ElementTest] Goal insert failed. DB Error: ' . $wpdb->last_error );
+						error_log( '[ElementTest] Goal data: ' . wp_json_encode( $g_data ) );
+					}
 					$submitted_goal_ids[] = $wpdb->insert_id;
 				}
 			}
@@ -1619,6 +1595,9 @@ class ElementTest_Ajax_Handler {
 		);
 
 		if ( false === $result ) {
+			if ( $wpdb->last_error ) {
+				error_log( '[ElementTest] Conversion insert failed. DB Error: ' . $wpdb->last_error );
+			}
 			wp_send_json_error(
 				array( 'message' => __( 'Failed to record conversion.', 'elementtest-pro' ) )
 			);
@@ -2363,18 +2342,13 @@ class ElementTest_Ajax_Handler {
 		}
 
 		// Fetch the page HTML. Only forward WordPress authentication cookies
-		// needed for the logged-in page render, not the full incoming cookie jar.
-		// Cookie names and values are unslashed and sanitized as text before
-		// being passed to WP_Http_Cookie; the strpos() prefix check restricts
-		// the loop to known WordPress auth cookies.
+		// needed for the logged-in page render, not the full $_COOKIE jar.
 		$forward_cookies = array();
-		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- read-only forward of auth cookie.
-		foreach ( (array) $_COOKIE as $cookie_name => $cookie_value ) {
-			$cookie_name = sanitize_text_field( wp_unslash( $cookie_name ) );
-			if ( strpos( $cookie_name, 'wordpress_logged_in_' ) === 0 ) {
+		foreach ( $_COOKIE as $name => $value ) {
+			if ( strpos( $name, 'wordpress_logged_in_' ) === 0 ) {
 				$forward_cookies[] = new WP_Http_Cookie( array(
-					'name'  => $cookie_name,
-					'value' => sanitize_text_field( wp_unslash( $cookie_value ) ),
+					'name'  => $name,
+					'value' => $value,
 				) );
 			}
 		}
@@ -2396,12 +2370,7 @@ class ElementTest_Ajax_Handler {
 		}
 
 		// Inject the selector script before </body>.
-		// The script tag is injected into a proxied third-party page that is
-		// streamed back to the admin element-selector iframe; there is no
-		// active WordPress page for wp_enqueue_script() to attach to in this
-		// path, so the script must be embedded via a literal <script> tag.
 		$inject_url = ELEMENTTEST_PLUGIN_URL . 'assets/js/selector-inject.js?v=' . ELEMENTTEST_VERSION;
-		// phpcs:ignore WordPress.WP.EnqueuedResources.NonEnqueuedScript -- injected into proxied HTML response, see comment above.
 		$script_tag = '<script src="' . esc_url( $inject_url ) . '"></script>';
 
 		// Also inject a base tag to fix relative URLs.

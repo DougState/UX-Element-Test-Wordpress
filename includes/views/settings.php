@@ -16,10 +16,14 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-// Admin settings template included from
-// ElementTest_Pro::render_settings_page(); $settings is local to that
-// method's scope, not a global.
-// phpcs:disable WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedVariableFound
+// Defense-in-depth: the WordPress admin menu registers this page with the
+// manage_options capability, so non-admins can't reach render_settings_page().
+// Belt-and-suspenders check here so a future include from a non-admin context
+// (network admin, shortcode preview, etc.) still refuses to render the
+// diagnostic button + GA4 settings to unprivileged users.
+if ( ! current_user_can( 'manage_options' ) ) {
+	return;
+}
 
 $settings = isset( $settings ) ? $settings : array();
 ?>
@@ -251,7 +255,7 @@ $settings = isset( $settings ) ? $settings : array();
 		</script>
 
 		<!-- ============================================================
-		     GA4 Integration (Future)
+		     GA4 Integration
 		     ============================================================ -->
 		<div class="postbox">
 			<div class="postbox-header">
@@ -276,7 +280,7 @@ $settings = isset( $settings ) ? $settings : array();
 									<?php esc_html_e( 'Send variant views and conversions as custom GA4 events', 'elementtest-pro' ); ?>
 								</label>
 								<p class="description">
-									<?php esc_html_e( 'Requires an active GA4 tag (gtag.js) on your site. Events will be sent as elementtest_variant_viewed and elementtest_converted.', 'elementtest-pro' ); ?>
+									<?php esc_html_e( 'Requires an active GA4 tag (gtag.js) on your site. Variant conversions are sent as elementtest_converted events (variant impressions / elementtest_variant_viewed are planned for a future release). Register test_id, test_name, variant_id, variant_name, and revenue_value as custom dimensions in your GA4 admin to see them in standard reports.', 'elementtest-pro' ); ?>
 								</p>
 							</td>
 						</tr>
@@ -300,8 +304,100 @@ $settings = isset( $settings ) ? $settings : array();
 								</p>
 							</td>
 						</tr>
+						<tr>
+							<th scope="row">
+								<?php esc_html_e( 'Test GA4 connection', 'elementtest-pro' ); ?>
+							</th>
+							<td>
+								<button type="button" id="elementtest-ga4-test-btn" class="button">
+									<?php esc_html_e( 'Run diagnostic', 'elementtest-pro' ); ?>
+								</button>
+								<p class="description">
+									<?php esc_html_e( 'Reports whether gtag.js is available in this admin page and, if so, fires a one-off elementtest_diagnostic_test event. Note: most sites only load gtag.js on the front-end, so admin-context may show "not available" even when GA4 is correctly configured on the site. To verify front-end wiring, open any front-end page where a test is running and check the browser console for typeof window.gtag.', 'elementtest-pro' ); ?>
+								</p>
+								<div id="elementtest-ga4-test-output" hidden style="margin-top:12px;padding:12px 14px;background:#fff;border:1px solid #ccd0d4;border-left:4px solid #ccc;font-family:Menlo,Consolas,monospace;font-size:13px;line-height:1.6;"></div>
+							</td>
+						</tr>
 					</tbody>
 				</table>
+
+				<script>
+				(function () {
+					var btn = document.getElementById( 'elementtest-ga4-test-btn' );
+					var out = document.getElementById( 'elementtest-ga4-test-output' );
+					if ( ! btn || ! out ) {
+						return;
+					}
+
+					function escapeHtml( s ) {
+						return String( s )
+							.replace( /&/g, '&amp;' )
+							.replace( /</g, '&lt;' )
+							.replace( />/g, '&gt;' )
+							.replace( /"/g, '&quot;' )
+							.replace( /'/g, '&#39;' );
+					}
+
+					btn.addEventListener( 'click', function () {
+						var gtagType = typeof window.gtag;
+						var hasGtag = gtagType === 'function';
+						var midField = document.getElementById( 'elementtest-ga4-measurement-id' );
+						var measurementId = midField ? midField.value.trim() : '';
+
+						var lines = [];
+						lines.push( '<strong>Diagnostic results</strong>' );
+						lines.push( '' );
+						lines.push(
+							( hasGtag ? '✓' : '✗' ) +
+							' window.gtag (admin context): <code>' + escapeHtml( gtagType ) + '</code>'
+						);
+						lines.push(
+							( measurementId ? '✓' : '○' ) +
+							' Measurement ID configured: <code>' +
+							( measurementId ? escapeHtml( measurementId ) : '(empty)' ) +
+							'</code>'
+						);
+
+						if ( hasGtag ) {
+							try {
+								window.gtag( 'event', 'elementtest_diagnostic_test', {
+									source: 'elementtest_settings_page',
+									plugin_version: '<?php echo esc_js( ELEMENTTEST_VERSION ); ?>',
+									ts: Date.now()
+								} );
+								lines.push(
+									'✓ Fired test event: <code>elementtest_diagnostic_test</code>'
+								);
+								lines.push(
+									'&nbsp;&nbsp;→ Check GA4 DebugView within 30 seconds.'
+								);
+								out.style.borderLeftColor = '#46b450';
+							} catch ( e ) {
+								lines.push(
+									'✗ gtag() threw an error: <code>' +
+									escapeHtml( e && e.message ? e.message : String( e ) ) +
+									'</code>'
+								);
+								out.style.borderLeftColor = '#dc3232';
+							}
+						} else {
+							lines.push(
+								'○ Test event NOT fired (gtag unavailable in this context).'
+							);
+							lines.push(
+								'&nbsp;&nbsp;→ Open any front-end page where a test runs and check <code>typeof window.gtag</code> in the browser console.'
+							);
+							lines.push(
+								'&nbsp;&nbsp;→ If undefined on the front-end too: GA4 isn’t configured on the site, or a consent plugin is blocking gtag.js until consent is granted.'
+							);
+							out.style.borderLeftColor = '#dba617';
+						}
+
+						out.innerHTML = lines.join( '<br>' );
+						out.hidden = false;
+					} );
+				}());
+				</script>
 			</div>
 		</div>
 

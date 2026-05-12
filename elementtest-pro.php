@@ -1,17 +1,18 @@
 <?php
 /**
  * Plugin Name: ElementTest Pro
- * Plugin URI: https://github.com/DougState/UX-Element-Test-Wordpress
+ * Plugin URI: https://github.com/DougState/elementtest-pro
  * Description: A/B test various elements (CSS, copy, JS, images) of your pages and track conversion data to measure performance.
- * Version: 2.4.4
+ * Version: 2.5.1
  * Requires at least: 5.6
- * Tested up to: 6.9
+ * Tested up to: 6.7
  * Requires PHP: 7.4
- * Author: Doug Wagner
- * Author URI: https://dougstate.com
+ * Author: Elimstat Dev Ops
+ * Author URI: https://elimstat.com
  * License: GPL v2 or later
  * License URI: https://www.gnu.org/licenses/gpl-2.0.html
  * Text Domain: elementtest-pro
+ * Domain Path: /languages
  *
  * @package ElementTestPro
  */
@@ -21,21 +22,8 @@ if ( ! defined( 'ABSPATH' ) ) {
     exit;
 }
 
-// The render_*_page() and create_tables() methods below operate on the
-// plugin's own custom tables (`{prefix}elementtest_tests`, `_variants`,
-// `_events`, `_conversions`); table names come from the trusted
-// `$wpdb->prefix` constant and are interpolated because `$wpdb->prepare()`
-// does not accept identifier placeholders. `$_GET` reads in the render
-// methods are read-only routing parameters and are sanitised via
-// `absint()`/`sanitize_key()` before use.
-// phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery
-// phpcs:disable WordPress.DB.DirectDatabaseQuery.NoCaching
-// phpcs:disable WordPress.DB.PreparedSQL.InterpolatedNotPrepared
-// phpcs:disable PluginCheck.Security.DirectDB.UnescapedDBParameter
-// phpcs:disable WordPress.Security.NonceVerification.Recommended
-
 // Define plugin constants
-define( 'ELEMENTTEST_VERSION', '2.4.4' );
+define( 'ELEMENTTEST_VERSION', '2.5.1' );
 define( 'ELEMENTTEST_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'ELEMENTTEST_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
 define( 'ELEMENTTEST_PLUGIN_BASENAME', plugin_basename( __FILE__ ) );
@@ -75,9 +63,8 @@ class ElementTest_Pro {
         register_activation_hook( __FILE__, array( $this, 'activate' ) );
         register_deactivation_hook( __FILE__, array( $this, 'deactivate' ) );
 
-        // Translations are auto-loaded by WordPress for plugins hosted on
-        // WordPress.org since version 4.6, so load_plugin_textdomain() is
-        // no longer needed.
+        // Load plugin textdomain
+        add_action( 'plugins_loaded', array( $this, 'load_textdomain' ) );
 
         // Admin menu
         add_action( 'admin_menu', array( $this, 'add_admin_menu' ) );
@@ -260,6 +247,17 @@ class ElementTest_Pro {
     }
 
     /**
+     * Load plugin textdomain
+     */
+    public function load_textdomain() {
+        load_plugin_textdomain(
+            'elementtest-pro',
+            false,
+            dirname( ELEMENTTEST_PLUGIN_BASENAME ) . '/languages'
+        );
+    }
+
+    /**
      * Add admin menu
      */
     public function add_admin_menu() {
@@ -416,6 +414,7 @@ class ElementTest_Pro {
         }
 
         // Query tests with aggregated variant counts and event stats.
+        // phpcs:disable WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- table names are constructed from $wpdb->prefix.
         $tests = $wpdb->get_results(
             "SELECT t.*,
                 COALESCE( v.variant_count, 0 ) AS variant_count,
@@ -444,6 +443,7 @@ class ElementTest_Pro {
             {$where}
             ORDER BY t.created_at DESC"
         );
+        // phpcs:enable WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 
         // Build status counts for the filter tabs.
         $count_rows = $wpdb->get_results(

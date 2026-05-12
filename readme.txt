@@ -1,9 +1,9 @@
 === ElementTest Pro ===
-Contributors: desigstate
+Contributors: Doug Wagner
 Tags: ab-testing, split-testing, conversion, optimization, analytics
 Requires at least: 5.6
-Tested up to: 6.9
-Stable tag: 2.4.4
+Tested up to: 6.7
+Stable tag: 2.5.1
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -13,8 +13,6 @@ A/B test various elements of your WordPress pages and track conversion data to m
 == Description ==
 
 ElementTest Pro allows you to A/B test various elements (CSS, copy, JS, images) of your WordPress pages and includes conversion data to measure performance when they are tested against each other.
-
-Source code: https://github.com/DougState/UX-Element-Test-Wordpress
 
 **Features:**
 
@@ -36,15 +34,6 @@ Source code: https://github.com/DougState/UX-Element-Test-Wordpress
 2. Activate the plugin through the 'Plugins' screen in WordPress
 3. Use the ElementTest menu in the admin sidebar to configure the plugin
 
-== Third-Party Libraries ==
-
-This plugin bundles the following third-party library; its source is
-included verbatim in `assets/js/` and is loaded only by the standalone
-HTML report export so that exported reports render their charts when
-opened offline (no remote requests are made by this plugin):
-
-* **Chart.js** v4 — https://www.chartjs.org/ — MIT License — https://github.com/chartjs/Chart.js/blob/master/LICENSE.md
-
 == Frequently Asked Questions ==
 
 = Does this work with page builders? =
@@ -55,47 +44,34 @@ Yes, ElementTest Pro is designed to work with popular page builders like Element
 
 All testing data is stored in your WordPress database. No external services are used.
 
-= What happens to my data if I uninstall the plugin? =
-
-Deleting the plugin from the Plugins screen runs the bundled `uninstall.php`, which removes the plugin's options and drops its custom database tables (`{prefix}elementtest_tests`, `{prefix}elementtest_variants`, `{prefix}elementtest_events`, `{prefix}elementtest_conversions`). Deactivating the plugin alone leaves all data in place.
-
-== Screenshots ==
-
-1. Tests list — manage all A/B tests from one screen.
-2. Test editor — configure variants, traffic split, and conversion goals.
-3. Results dashboard — view conversion rates, statistical significance, and per-variant performance.
-4. HTML report export — share standalone reports with stakeholders.
-
-== Upgrade Notice ==
-
-= 2.4.0 =
-Security release: hardens the AJAX handler with prepared SQL for dynamic ID lists, stricter proxy URL validation, and non-negative imported goal revenue. Recommended for all users.
-
-= 2.3.9 =
-Bug fixes for wildcard pageview goal matching on the frontend and a corrected Plugin URI header.
-
-= 2.3.6 =
-Security release: closes an unauthenticated DB write amplification / DoS vector on public tracking endpoints. Recommended for all users.
-
 == Changelog ==
 
+= 2.5.1 =
+* (2.5.0 was prepared but never tagged or shipped; its entries are captured into 2.5.1 below. The 2.5.0 → 2.5.1 bump rolls in a WooCommerce-specific Add-to-Cart conversion fix discovered during manual validation on a production site — the original 2.5.0 added gtag forwarding only inside `trackConversion()` and missed the parallel `trackAddToCartConversion()` codepath, so WC Add-to-Cart goals fired correctly to the plugin DB but never reached GA4. The 2.5.1 fix extracts a shared `fireGa4ConversionEvent()` helper called from both conversion-firing functions, so every goal type now emits the `elementtest_converted` event identically.)
+* Feature: GA4 custom event forwarding for variant conversions. When the new "Enable GA4 Events" setting is on in **ElementTest → Settings → Google Analytics 4 Integration**, every variant conversion fires a `gtag('event', 'elementtest_converted', { test_id, test_name, variant_id, variant_name, revenue_value, transport_type: 'beacon' })` call in parallel with the existing plugin-DB conversion record. Events arrive in GA4 DebugView within ~30 seconds and become sliceable in GA4 reports once you register the event parameters as custom dimensions in the GA4 admin (the plugin does NOT register them for you — see the description text under the GA4 settings checkbox). The `transport_type: 'beacon'` flag is the load-bearing detail: the plugin's existing conversion AJAX uses `navigator.sendBeacon` so click and form-submit conversion goals survive the immediate navigation that follows; without matching beacon transport on the gtag call, those goal types would drop a large fraction of events to GA4. Gated on `window.gtag` being defined AND the saved `ga4_enabled` flag — when either is false the call is a no-op and the conversion still records to the plugin DB as before, so admin-context pages or consent-blocked frontends never break conversion tracking. The plugin does NOT load `gtag.js` itself; it only piggybacks on an existing GA4 tag (e.g., one loaded by WooCommerce Google Analytics Pro, Site Kit, or a tag manager). Conversion-only in this release — variant impression events (`elementtest_variant_viewed`) are planned for a follow-up release.
+* Feature: "Run diagnostic" button on the GA4 Integration settings panel. Admin-only (settings page is `manage_options`-gated). Reports `typeof window.gtag` in the admin-page context and the configured Measurement ID, then attempts to fire a hardcoded `elementtest_diagnostic_test` event so admins can confirm GA4 receives events before relying on the live conversion path. Output is color-coded and explains the front-end console verification step when admin-context gtag is undefined — which is common, since most sites only load `gtag.js` on the front-end.
+* UX: PII warning displayed next to the Test Name and Variant Name input fields when GA4 forwarding is enabled. GA4 explicitly disallows PII (emails, names, etc.) in event parameter values; placing the warning at the point of authorship rather than in settings copy reduces the risk that a test or variant authored months after GA4 was enabled silently leaks PII to Google.
+* Note: GA4 custom event parameters (`test_id`, `test_name`, `variant_id`, `variant_name`, `revenue_value`) appear in GA4 DebugView and Realtime immediately, but they will NOT show up as columns in standard GA4 reports until you register them as **custom dimensions** in the GA4 admin (**Admin → Custom definitions → Create custom dimensions**). The plugin does not automate this step. Once registered, expect a few hours of report-processing latency before the columns are populated.
+* Fix: Query-string wildcard pageview matching (bundled from PR #45 merged into main during this release cycle). Trigger URLs ending in `*` that include a `?` or `#` prefix now match correctly against the current request URL in `frontend.js` and `class-frontend.php`. Fixes false negatives where the conversion would not register even though the visitor reached the configured page.
+* Internal: JS `VERSION` constant in `assets/js/frontend.js` synced to 2.5.0 to match the plugin version (per the 2.3.9 sync convention).
+
 = 2.4.4 =
-* Tooling: Admin-only `?et_force=` query-parameter override for variant assignment. Lets logged-in admins (`manage_options`) deterministically preview any variant for QA — `?et_force=control` selects the Control variant of every test on the page, `?et_force=<variant_id>` selects a specific variant by ID. The forced assignment is written to the existing `elementtest_variant_<test_id>` cookie so it sticks across navigation; remove the cookie (or visit the page without the parameter and let it re-roll) to resume normal random assignment. Useful for QA on tests where the existing 50/50 cookie roll keeps producing the same variant on a single tester's browser. Gated server-side via a new `isAdmin` flag in the localized `elementtestFrontend` payload — non-admin visitors cannot bias real test data via shared URLs (anonymous traffic falls through to the normal weighted random path). Logs the forced assignment to `console.info` (or `console.warn` if the parameter does not match any variant) so DevTools makes the override unambiguous.
+* Tooling: Admin-only `?et_force=` query-parameter override for variant assignment. Lets logged-in admins (`manage_options`) deterministically preview any variant for QA — `?et_force=control` selects the Control variant of every test on the page, `?et_force=<variant_id>` selects a specific variant by ID. The forced assignment is written to the existing `elementtest_variant_<test_id>` cookie so it sticks across navigation; remove the cookie (or visit the page without the parameter and let it re-roll) to resume normal random assignment. Required for QA on tests where the existing 50/50 cookie roll keeps producing the same variant on a single tester's browser. Gated server-side via a new `isAdmin` flag in the localized `elementtestFrontend` payload (`current_user_can( 'manage_options' )`) so non-admin visitors cannot bias real test data via shared URLs — anonymous traffic falls through to the normal weighted random path. Logs the forced assignment to `console.info` (or a `console.warn` if the parameter does not match any variant) so DevTools makes the override unambiguous. Requested while QA-testing test #6 on woo.dougstate.com where three consecutive 50/50 rolls all picked Variant B and the test owner needed a deterministic way to load Control without manually editing cookies in DevTools.
 
 = 2.4.3 =
-* Tooling: New WP-CLI subcommand `wp elementtest fix-variant-changes` for repairing pre-2.4.2 `wp_kses_post()`-mangled `js` and `css` variant source already in the database. The 2.4.2 fix only stopped *new* saves from being mangled; rows already in `wp_elementtest_variants` stayed corrupted (`>=` stored as `&gt;=`, `&&` as `&amp;&amp;`, `.parent > .child` selectors as `.parent &gt; .child`). The command JOINs `wp_elementtest_variants` to `wp_elementtest_tests`, filters to `test_type` in (`css`, `js`), and decodes only the five HTML entities `wp_kses_post()` produces from JS/CSS tokens (`&amp;`, `&lt;`, `&gt;`, `&quot;`, `&#039;`) — leaving named entities like `&middot;` or `&nbsp;` intact. Defaults to dry-run; `--apply` writes; `--backup=path.json` snapshots affected rows before any UPDATE; `--show-diff` prints up to 10 changed line pairs per variant; `--type=js|css` and `--test-id=N` narrow the scan.
+* Tooling: New WP-CLI subcommand `wp elementtest fix-variant-changes` for repairing pre-2.4.2 `wp_kses_post()`-mangled `js` and `css` variant source already in the database. The 2.4.2 fix only stopped *new* saves from being mangled; rows already in `wp_elementtest_variants` stayed corrupted (`>=` stored as `&gt;=`, `&&` as `&amp;&amp;`, `.parent > .child` selectors as `.parent &gt; .child`). The new command JOINs `wp_elementtest_variants` to `wp_elementtest_tests`, filters to `test_type` in (`css`, `js`), and decodes only the five HTML entities `wp_kses_post()` produces from JS/CSS tokens (`&amp;`, `&lt;`, `&gt;`, `&quot;`, `&#039;`) — leaving named entities like `&middot;` or `&nbsp;` intact because admins commonly embed those intentionally inside JS-built HTML strings. Defaults to dry-run; `--apply` writes; `--backup=path.json` snapshots affected rows before any UPDATE; `--show-diff` prints up to 10 changed line pairs per variant; `--type=js|css` and `--test-id=N` narrow the scan.
+* Note: with this command available, the 2.4.2 release-note recommendation to "re-save each affected variant manually" is no longer the only option — `wp elementtest fix-variant-changes --apply --backup=variants-backup.json` migrates them in bulk.
 
 = 2.4.2 =
-* Fix: JavaScript variant `changes` source is no longer mangled on save. The plugin previously applied `wp_kses_post()` uniformly to the `changes` column for every test type, but `changes` is polymorphic — it holds CSS rules, HTML, JavaScript source, or an image URL depending on `test_type`. Running JS source through `wp_kses_post()` parses it as HTML, rebalances/strips `<`, `>`, and `&` (e.g. operators like `>=`, string literals containing `<div>...</div>`, or `&middot;` entities), and produces source that throws `SyntaxError` at parse time when the variant's `<script>` is appended. Sanitization is now branched on `test_type` via a new `sanitize_variant_changes()` helper: `copy` continues to use `wp_kses_post()`, `image` uses `esc_url_raw()`, and `css`/`js` are stored as raw source. Both call sites (`save_test()`, `import_tests()`) are gated by `manage_options`, the same capability WordPress already requires for arbitrary code via Plugins / Theme Editor, so no trust-surface change.
-* Note: existing `js` variants saved on 2.4.1 or earlier are still mangled in the database. Re-save each affected variant after upgrading, or use the new `wp elementtest fix-variant-changes` command (added in 2.4.3) to repair them in bulk.
+* Fix: JavaScript variant `changes` source is no longer mangled on save. The `wp_kses_post()` sanitizer was applied uniformly to the `changes` column for every test type, but `changes` is polymorphic — it holds CSS rules, HTML, JavaScript source, or an image URL depending on `test_type`. Running JS source through `wp_kses_post()` parses it as HTML, rebalances/strips `<`, `>`, and `&`, and produces source that throws `SyntaxError` at parse time when the variant's `<script>` is appended. Sanitization is now branched on `test_type`: `copy` continues to use `wp_kses_post()`, `image` uses `esc_url_raw()`, and `css`/`js` are stored as raw source. Both call sites (`save_test()` and `import_tests()`) are gated by `manage_options`, the same capability WordPress already requires for arbitrary code via Plugins / Theme Editor, so no trust-surface change. Issue documented as a Low correctness finding in the 2026-04-06 security review.
+* Note: existing `js` variants saved on 2.4.1 or earlier are still mangled in the database. Re-save each affected variant after upgrading to repopulate it from the original source. (Re-saving an `image` variant under 2.4.2 will also normalize the URL via `esc_url_raw` instead of `wp_kses_post`.)
 
 = 2.4.1 =
-* Fix: Full-URL wildcard pageview triggers (PR #43). A prefix like `https://example.com/shop/*` could previously match sibling paths like `/shopping` because the listener fell back to a loose full-URL `indexOf` check. The trigger is now resolved to its `URL.pathname` and matched with the same path-boundary rules as path-only wildcards (`/shop/*`); the full-URL fallback only applies when the prefix explicitly includes `?` or `#`. Mirrors the same change in `detect_pageview_goal_tests()`.
+* Fix: Full-URL wildcard pageview triggers (PR #43). Prefixes ending in `*` with a scheme/host no longer fall back to a loose full-URL prefix match that could incorrectly match sibling paths such as `/shopping`; path-boundary matching uses the pathname. Full-URL prefix fallback retained only when the prefix explicitly includes query or fragment. Updated `setupPageviewGoal` (`frontend.js`) and `detect_pageview_goal_tests()` (`class-frontend.php`).
 * UX: Cap the test results "Performance Over Time" chart at `max-height: 500px` so the chart fits on screen on wide displays.
 
 = 2.4.0 =
 * Security: Harden AJAX handler (PR #42) — proper `$wpdb->prepare()` for dynamic ID lists when deleting orphaned variants/goals and when exporting multiple tests; stricter `proxy_page()` URL validation (HTTP/HTTPS only, case-insensitive host match, port allowlist); clamp imported goal `revenue_value` to non-negative.
-* Compliance: Add `uninstall.php` so options and custom tables are cleaned up when the plugin is deleted; sanitize cookie names/values when forwarding WordPress auth cookies through the admin proxy fetch.
 
 = 2.3.9 =
 * Fix: Enforce path boundary in wildcard pageview goal matching in the frontend JavaScript (`setupPageviewGoal` in `frontend.js`). Previously, a wildcard trigger like `/shop/*` would incorrectly match `/shopping` or `/shop-archive` on the client side. The same boundary fix was applied to the PHP backend in `conversion_page_matches()` (2.2.6, PR #29) and `detect_pageview_goal_tests()` (2.3.8), but was missing from the client-side pageview goal listener.

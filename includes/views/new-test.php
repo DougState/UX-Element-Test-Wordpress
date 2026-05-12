@@ -14,12 +14,6 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-// This file is an admin page template included from
-// ElementTest_Pro::render_new_test_page(); variables it consumes are
-// local to the including method, not globals.
-// phpcs:disable WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedVariableFound
-// phpcs:disable WordPress.Security.NonceVerification.Recommended
-
 /*
  * Define test type options centrally so the select and JavaScript
  * can reference the same list.
@@ -45,6 +39,21 @@ $is_edit   = ! empty( $test_data['test'] );
 $test      = $is_edit ? $test_data['test'] : array();
 $edit_id   = $is_edit ? absint( $test['test_id'] ) : 0;
 $edit_name = $is_edit ? $test['name'] : '';
+
+// PII warning. When GA4 forwarding is enabled, test/variant names are sent
+// to Google Analytics as event parameters. GA4 explicitly disallows PII
+// (emails, names, etc.) in event params, so we surface a warning at the
+// point of authorship rather than burying it in settings copy. Pre-rendered
+// here so the same markup ships at all three name-input sites below.
+$et_ga4_settings_for_warn  = get_option( 'elementtest_settings', array() );
+$et_ga4_pii_warning_active = ! empty( $et_ga4_settings_for_warn['ga4_enabled'] );
+$et_ga4_pii_warning_html   = '';
+if ( $et_ga4_pii_warning_active ) {
+	$et_ga4_pii_warning_html = sprintf(
+		'<p class="description" style="color:#8a5a00;font-weight:500;margin-top:4px;"><span class="dashicons dashicons-warning" style="font-size:16px;height:16px;width:16px;vertical-align:text-bottom;color:#8a5a00;" aria-hidden="true"></span> %s</p>',
+		esc_html__( 'GA4 forwarding is on — do not include PII (emails, names, etc.) in this field. The value is sent to Google Analytics as an event parameter.', 'elementtest-pro' )
+	);
+}
 ?>
 
 <div class="wrap elementtest-wrap">
@@ -103,6 +112,7 @@ $edit_name = $is_edit ? $test['name'] : '';
 									placeholder="<?php esc_attr_e( 'e.g. Hero Button Color Test', 'elementtest-pro' ); ?>"
 									value="<?php echo esc_attr( $is_edit ? $test['name'] : '' ); ?>"
 								>
+								<?php echo $et_ga4_pii_warning_html; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- markup pre-escaped via esc_html__() in the sprintf above. ?>
 							</td>
 						</tr>
 
@@ -349,6 +359,7 @@ $edit_name = $is_edit ? $test['name'] : '';
 												value="<?php esc_attr_e( 'Variant B', 'elementtest-pro' ); ?>"
 											>
 											<input type="hidden" name="variants[1][is_control]" value="0">
+											<?php echo $et_ga4_pii_warning_html; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- markup pre-escaped above. ?>
 										</td>
 									</tr>
 
@@ -822,6 +833,7 @@ $edit_name = $is_edit ? $test['name'] : '';
 								value="<?php echo esc_attr__( 'Variant', 'elementtest-pro' ); ?> {{data.letter}}"
 							>
 							<input type="hidden" name="variants[{{data.index}}][is_control]" value="0">
+							<?php echo $et_ga4_pii_warning_html; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- markup pre-escaped above. ?>
 						</td>
 					</tr>
 

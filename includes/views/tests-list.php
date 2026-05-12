@@ -23,16 +23,6 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-// This file is an admin page template included from
-// ElementTest_Pro::render_admin_page(); the variables it consumes are
-// not globals — they are local to the including method's scope. Plugin
-// Check cannot follow PHP `include` semantics so it reports them as
-// non-prefixed globals. Read-only `$_GET` lookups are sanitised via
-// `sanitize_key()`/`absint()` and only used to drive the status filter
-// and pagination, no state changes.
-// phpcs:disable WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedVariableFound
-// phpcs:disable WordPress.Security.NonceVerification.Recommended
-
 // Ensure expected variables exist.
 $tests  = isset( $tests ) ? $tests : array();
 $counts = isset( $counts ) ? $counts : array(

@@ -19,16 +19,6 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-// All queries in this file target the plugin's custom tables
-// (`{prefix}elementtest_tests`, `_variants`, `_conversions`,
-// `_events`); table names are built from the trusted `$wpdb->prefix`
-// constant and interpolated into the SQL because `$wpdb->prepare()`
-// does not accept identifier placeholders.
-// phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery
-// phpcs:disable WordPress.DB.DirectDatabaseQuery.NoCaching
-// phpcs:disable WordPress.DB.PreparedSQL.InterpolatedNotPrepared
-// phpcs:disable PluginCheck.Security.DirectDB.UnescapedDBParameter
-
 /**
  * Class ElementTest_Frontend
  *
@@ -208,6 +198,9 @@ class ElementTest_Frontend {
 		$current_url       = ( is_ssl() ? 'https' : 'http' ) . '://'
 			. ( isset( $_SERVER['HTTP_HOST'] ) ? sanitize_text_field( wp_unslash( $_SERVER['HTTP_HOST'] ) ) : '' )
 			. ( isset( $_SERVER['REQUEST_URI'] ) ? sanitize_text_field( wp_unslash( $_SERVER['REQUEST_URI'] ) ) : '/' );
+		$current_request_uri = isset( $_SERVER['REQUEST_URI'] )
+			? sanitize_text_field( wp_unslash( $_SERVER['REQUEST_URI'] ) )
+			: '/';
 
 		foreach ( $running_tests as $test ) {
 			$tid = absint( $test->test_id );
@@ -242,12 +235,14 @@ class ElementTest_Frontend {
 
 				if ( substr( $trigger, -1 ) === '*' ) {
 					$prefix = substr( $trigger, 0, -1 );
-					$trigger_path = $this->normalise_path( $prefix );
-					$matched = ( '/' === $trigger_path )
-						|| ( $current_path === $trigger_path )
-						|| strpos( $current_path, $trigger_path . '/' ) === 0;
-					if ( ! $matched && ( false !== strpos( $prefix, '?' ) || false !== strpos( $prefix, '#' ) ) ) {
-						$matched = strpos( $current_url, $prefix ) === 0;
+					if ( false !== strpos( $prefix, '?' ) || false !== strpos( $prefix, '#' ) ) {
+						$matched = ( 0 === strpos( $current_url, $prefix ) )
+							|| ( 0 === strpos( $current_request_uri, $prefix ) );
+					} else {
+						$trigger_path = $this->normalise_path( $prefix );
+						$matched = ( '/' === $trigger_path )
+							|| ( $current_path === $trigger_path )
+							|| strpos( $current_path, $trigger_path . '/' ) === 0;
 					}
 				} else {
 					$trigger_path = $this->normalise_path( $trigger );
@@ -265,19 +260,40 @@ class ElementTest_Frontend {
 			}
 
 			if ( ! empty( $matching_goals ) ) {
-				// Fetch variant IDs so the JS can read the cookie assignment.
+				// Fetch variant IDs + names so the JS can read the cookie
+				// assignment AND fire the GA4 elementtest_converted event with
+				// human-readable variant_name on cross-page pageview goals (not
+				// just on-page conversions). Without name here, GA4 DebugView
+				// shows "variant_id=47" for these conversions instead of the
+				// authored variant name.
 				// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
-				$variant_ids = $wpdb->get_col(
+				$variant_rows = $wpdb->get_results(
 					$wpdb->prepare(
 						// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
-						"SELECT variant_id FROM {$variants_table} WHERE test_id = %d ORDER BY variant_id ASC",
+						"SELECT variant_id, name FROM {$variants_table} WHERE test_id = %d ORDER BY variant_id ASC",
 						$tid
 					)
 				);
 
+				$variant_ids  = array();
+				$variant_data = array();
+				if ( ! empty( $variant_rows ) ) {
+					foreach ( $variant_rows as $v_row ) {
+						$variant_ids[]  = absint( $v_row->variant_id );
+						$variant_data[] = array(
+							'variant_id' => absint( $v_row->variant_id ),
+							'name'       => sanitize_text_field( $v_row->name ),
+						);
+					}
+				}
+
 				$this->pageview_goal_tests[] = array(
 					'test_id'     => $tid,
-					'variant_ids' => array_map( 'absint', $variant_ids ),
+					// Used for the GA4 elementtest_converted event payload on
+					// cross-page pageview conversions. See build_conversion_only_data().
+					'test_name'   => sanitize_text_field( $test->name ),
+					'variant_ids' => $variant_ids,
+					'variants'    => $variant_data,
 					'goals'       => $matching_goals,
 				);
 			}
@@ -394,6 +410,12 @@ class ElementTest_Frontend {
 			// cannot bias real test data by sharing forced URLs. See
 			// assignVariant() in assets/js/frontend.js.
 			'isAdmin'    => current_user_can( 'manage_options' ),
+			// Gate for client-side gtag('event', 'elementtest_converted', ...)
+			// forwarding in frontend.js. Toggled by the "Enable GA4 Events"
+			// setting; consumed alongside a typeof window.gtag check at the
+			// conversion fire site so the call is a no-op when either gate
+			// fails.
+			'ga4Enabled' => ! empty( $settings['ga4_enabled'] ),
 		);
 
 		if ( ! empty( $this->pageview_goal_tests ) ) {
@@ -490,6 +512,11 @@ class ElementTest_Frontend {
 
 			$tests_data[] = array(
 				'test_id'          => $test_id,
+				// Used as a parameter on the GA4 elementtest_converted event
+				// so the marketing team sees a human-readable name in
+				// DebugView rather than just a numeric test_id. Looked up
+				// by ID at fire time in assets/js/frontend.js.
+				'test_name'        => sanitize_text_field( $test->name ),
 				'element_selector' => sanitize_text_field( $test->element_selector ),
 				'test_type'        => sanitize_key( $test->test_type ),
 				'variants'         => $variants_data,
@@ -514,7 +541,15 @@ class ElementTest_Frontend {
 		foreach ( $this->pageview_goal_tests as $entry ) {
 			$data[] = array(
 				'test_id'     => $entry['test_id'],
+				// test_name and variants[].name pass through to the GA4
+				// elementtest_converted event payload so cross-page pageview
+				// conversions emit human-readable names, not just IDs. The
+				// trackConversion() gate in frontend.js looks up names from
+				// elementtestFrontend.tests first and falls back to
+				// elementtestFrontend.conversionOnlyTests.
+				'test_name'   => isset( $entry['test_name'] ) ? $entry['test_name'] : '',
 				'variant_ids' => $entry['variant_ids'],
+				'variants'    => isset( $entry['variants'] ) ? $entry['variants'] : array(),
 				'goals'       => $entry['goals'],
 			);
 		}

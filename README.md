@@ -21,6 +21,7 @@ Release history lives in `readme.txt` for WordPress.org and is mirrored in `CHAN
 - Performance analytics with statistical significance
 - Schedule-based test start/stop
 - Export reports as standalone HTML (with Chart.js visual dashboard), CSV, or JSON via admin UI or WP-CLI
+- Optional GA4 custom event forwarding for variant conversions (fires `elementtest_converted` to your existing `gtag` tag in parallel with the plugin's DB tracking)
 
 ## Database Tables
 

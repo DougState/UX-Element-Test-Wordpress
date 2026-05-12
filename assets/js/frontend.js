@@ -31,7 +31,7 @@ try {
 	// Constants & State
 	// =========================================================================
 
-	var VERSION = '2.4.4';
+	var VERSION = '2.5.1';
 	var OBSERVER_TIMEOUT = 8000; // Max time (ms) to wait for elements via MutationObserver.
 	var ANTIFLICKER_TIMEOUT = 3000; // Max time (ms) before forcing anti-flicker removal.
 
@@ -533,6 +533,87 @@ try {
 		};
 
 		sendTrackingRequest( data );
+
+		fireGa4ConversionEvent( testId, variantId, revenue );
+	}
+
+	/**
+	 * Forward a conversion to GA4 as a custom event when enabled and gtag is
+	 * loaded. Called by every conversion-firing path (trackConversion for
+	 * general goals, trackAddToCartConversion for WooCommerce add-to-cart
+	 * goals) right after sendTrackingRequest. Independent of the AJAX write
+	 * above -- a gtag failure cannot affect the plugin DB.
+	 *
+	 * transport_type: 'beacon' parallels the navigator.sendBeacon used by
+	 * sendTrackingRequest, so the event survives the immediate navigation that
+	 * happens on click and form-submit conversion goals (gtag's default tick
+	 * would otherwise drop a large fraction of those events).
+	 *
+	 * Test name and variant name are looked up by ID from elementtestFrontend
+	 * so the GA4 event carries human-readable names instead of just numeric
+	 * IDs. Falls back to elementtestFrontend.conversionOnlyTests for
+	 * cross-page pageview conversions where the test isn't in the on-page
+	 * tests array.
+	 *
+	 * @param {number} testId    Test ID.
+	 * @param {number} variantId Variant ID.
+	 * @param {number} revenue   Revenue value (parsed to a JS number).
+	 */
+	function fireGa4ConversionEvent( testId, variantId, revenue ) {
+		if ( ! window.gtag || ! elementtestFrontend.ga4Enabled ) {
+			return;
+		}
+
+		var ga4Test = null;
+		var ga4Variant = null;
+		// Look up names in elementtestFrontend.tests first (on-page tests).
+		var ga4Tests = elementtestFrontend.tests || [];
+		for ( var ga4i = 0; ga4i < ga4Tests.length; ga4i++ ) {
+			if ( ga4Tests[ ga4i ].test_id === testId ) {
+				ga4Test = ga4Tests[ ga4i ];
+				break;
+			}
+		}
+		// Fall back to conversionOnlyTests for cross-page pageview goals.
+		if ( ! ga4Test && elementtestFrontend.conversionOnlyTests ) {
+			var ga4Conv = elementtestFrontend.conversionOnlyTests;
+			for ( var ga4c = 0; ga4c < ga4Conv.length; ga4c++ ) {
+				if ( ga4Conv[ ga4c ].test_id === testId ) {
+					ga4Test = ga4Conv[ ga4c ];
+					break;
+				}
+			}
+		}
+		if ( ga4Test && ga4Test.variants ) {
+			for ( var ga4j = 0; ga4j < ga4Test.variants.length; ga4j++ ) {
+				if ( ga4Test.variants[ ga4j ].variant_id === variantId ) {
+					ga4Variant = ga4Test.variants[ ga4j ];
+					break;
+				}
+			}
+		}
+		// Coerce revenue to a JS number. GA4 expects numeric revenue_value;
+		// the existing AJAX path accepts string "0.00" and the server casts
+		// it server-side, but gtag would forward the string verbatim and
+		// break GA4-side numeric aggregation (revenue totals silently
+		// disagree with the plugin DB).
+		var ga4Revenue = parseFloat( revenue );
+		if ( isNaN( ga4Revenue ) ) {
+			ga4Revenue = 0;
+		}
+		try {
+			window.gtag( 'event', 'elementtest_converted', {
+				test_id: testId,
+				test_name: ga4Test ? ga4Test.test_name : '',
+				variant_id: variantId,
+				variant_name: ga4Variant ? ga4Variant.name : '',
+				revenue_value: ga4Revenue,
+				transport_type: 'beacon'
+			} );
+		} catch ( e ) {
+			// Never let gtag errors break the conversion flow. The plugin
+			// DB write already happened via sendTrackingRequest above.
+		}
 	}
 
 	/**
@@ -698,21 +779,25 @@ try {
 		// Enforce path boundary so /shop/* does not match /shopping.
 		if ( triggerUrl.charAt( triggerUrl.length - 1 ) === '*' ) {
 			var prefix = triggerUrl.substring( 0, triggerUrl.length - 1 );
-			var prefixPath;
+			var hasQueryOrHash = prefix.indexOf( '?' ) !== -1 || prefix.indexOf( '#' ) !== -1;
 
-			try {
-				prefixPath = new URL( prefix, window.location.origin ).pathname;
-			} catch ( e ) {
-				prefixPath = prefix;
-			}
+			if ( hasQueryOrHash ) {
+				var currentRelativeUrl = currentPath + window.location.search + window.location.hash;
+				matched = ( currentUrl.indexOf( prefix ) === 0 )
+					|| ( currentRelativeUrl.indexOf( prefix ) === 0 );
+			} else {
+				var prefixPath;
 
-			var prefixNoSlash = prefixPath.replace( /\/+$/, '' ) || '/';
-			matched = ( currentPath === prefixNoSlash )
-				|| ( prefixNoSlash === '/' )
-				|| ( currentPath.indexOf( prefixNoSlash + '/' ) === 0 );
+				try {
+					prefixPath = new URL( prefix, window.location.origin ).pathname;
+				} catch ( e ) {
+					prefixPath = prefix;
+				}
 
-			if ( ! matched && ( prefix.indexOf( '?' ) !== -1 || prefix.indexOf( '#' ) !== -1 ) ) {
-				matched = currentUrl.indexOf( prefix ) === 0;
+				var prefixNoSlash = prefixPath.replace( /\/+$/, '' ) || '/';
+				matched = ( currentPath === prefixNoSlash )
+					|| ( prefixNoSlash === '/' )
+					|| ( currentPath.indexOf( prefixNoSlash + '/' ) === 0 );
 			}
 		} else {
 			// Exact match against path or full URL.
@@ -1363,6 +1448,12 @@ try {
 		};
 
 		sendTrackingRequest( data );
+
+		// Forward to GA4 via the shared helper so add-to-cart conversions emit
+		// the same elementtest_converted event as click/form-submit/pageview
+		// goals. Without this call, WooCommerce Add-to-Cart conversion goals
+		// fire the plugin-DB AJAX correctly but never reach GA4.
+		fireGa4ConversionEvent( testId, variantId, revenue );
 	}
 
 	// =========================================================================

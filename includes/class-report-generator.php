@@ -14,19 +14,6 @@ if ( ! defined( 'ABSPATH' ) ) {
     exit;
 }
 
-// All queries in this file target the plugin's custom tables
-// (`{prefix}elementtest_tests`, `_variants`, `_events`,
-// `_conversions`); table names are built from the trusted
-// `$wpdb->prefix` constant and interpolated into the SQL because
-// `$wpdb->prepare()` does not accept identifier placeholders. Each
-// query is also already wrapped in `$wpdb->prepare()` for value
-// parameters, so there is no SQL injection surface despite the
-// interpolation warning.
-// phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery
-// phpcs:disable WordPress.DB.DirectDatabaseQuery.NoCaching
-// phpcs:disable WordPress.DB.PreparedSQL.InterpolatedNotPrepared
-// phpcs:disable PluginCheck.Security.DirectDB.UnescapedDBParameter
-
 class ElementTest_Report_Generator {
 
     /**
@@ -40,9 +27,6 @@ class ElementTest_Report_Generator {
 
         $test_id = absint( $test_id );
 
-        // Custom table names, derived from the trusted $wpdb->prefix.
-        // These are interpolated into queries because $wpdb->prepare() does
-        // not support placeholders for identifiers (table/column names).
         $tests_table       = $wpdb->prefix . 'elementtest_tests';
         $variants_table    = $wpdb->prefix . 'elementtest_variants';
         $events_table      = $wpdb->prefix . 'elementtest_events';
@@ -234,28 +218,28 @@ class ElementTest_Report_Generator {
      * @return string CSV content.
      */
     public function generate_csv( $data ) {
-        $rows = array();
+        $handle = fopen( 'php://temp', 'r+' );
 
         // Header row: test metadata.
-        $rows[] = array( 'Test', $data['test']['name'] );
-        $rows[] = array( 'Status', $data['test']['status'] );
-        $rows[] = array( 'Type', $data['test']['test_type'] );
-        $rows[] = array( 'Page URL', $data['test']['page_url'] );
-        $rows[] = array( 'Generated', $data['generated'] );
-        $rows[] = array();
+        fputcsv( $handle, array( 'Test', $data['test']['name'] ) );
+        fputcsv( $handle, array( 'Status', $data['test']['status'] ) );
+        fputcsv( $handle, array( 'Type', $data['test']['test_type'] ) );
+        fputcsv( $handle, array( 'Page URL', $data['test']['page_url'] ) );
+        fputcsv( $handle, array( 'Generated', $data['generated'] ) );
+        fputcsv( $handle, array() );
 
         // Summary KPIs.
-        $rows[] = array( 'Total Impressions', $data['summary']['total_impressions'] );
-        $rows[] = array( 'Total Conversions', $data['summary']['total_conversions'] );
-        $rows[] = array( 'Overall Rate (%)', $data['summary']['overall_rate'] );
-        $rows[] = array( 'Control Rate (%)', $data['summary']['control_rate'] );
-        $rows[] = array( 'Duration (days)', $data['summary']['duration_days'] );
-        $rows[] = array();
+        fputcsv( $handle, array( 'Total Impressions', $data['summary']['total_impressions'] ) );
+        fputcsv( $handle, array( 'Total Conversions', $data['summary']['total_conversions'] ) );
+        fputcsv( $handle, array( 'Overall Rate (%)', $data['summary']['overall_rate'] ) );
+        fputcsv( $handle, array( 'Control Rate (%)', $data['summary']['control_rate'] ) );
+        fputcsv( $handle, array( 'Duration (days)', $data['summary']['duration_days'] ) );
+        fputcsv( $handle, array() );
 
         // Variant summary.
-        $rows[] = array( 'Variant', 'Control', 'Impressions', 'Conversions', 'Rate (%)', 'Lift (%)', 'Confidence (%)', 'Verdict' );
+        fputcsv( $handle, array( 'Variant', 'Control', 'Impressions', 'Conversions', 'Rate (%)', 'Lift (%)', 'Confidence (%)', 'Verdict' ) );
         foreach ( $data['variants'] as $v ) {
-            $rows[] = array(
+            fputcsv( $handle, array(
                 $v['name'],
                 $v['is_control'] ? 'Yes' : 'No',
                 $v['impressions'],
@@ -264,9 +248,9 @@ class ElementTest_Report_Generator {
                 $v['lift'],
                 $v['confidence'],
                 $v['verdict'],
-            );
+            ) );
         }
-        $rows[] = array();
+        fputcsv( $handle, array() );
 
         // Goals breakdown (if any).
         if ( ! empty( $data['goals'] ) ) {
@@ -274,7 +258,7 @@ class ElementTest_Report_Generator {
             foreach ( $data['variants'] as $v ) {
                 $goal_header[] = $v['name'];
             }
-            $rows[] = $goal_header;
+            fputcsv( $handle, $goal_header );
 
             foreach ( $data['goals'] as $g ) {
                 $row = array(
@@ -287,56 +271,28 @@ class ElementTest_Report_Generator {
                         ? $v['goal_conversions'][ $g['conversion_id'] ]
                         : 0;
                 }
-                $rows[] = $row;
+                fputcsv( $handle, $row );
             }
-            $rows[] = array();
+            fputcsv( $handle, array() );
         }
 
         // Daily breakdown.
-        $rows[] = array( 'Date', 'Variant', 'Impressions', 'Conversions', 'Rate (%)' );
+        fputcsv( $handle, array( 'Date', 'Variant', 'Impressions', 'Conversions', 'Rate (%)' ) );
         foreach ( $data['daily'] as $row ) {
-            $rows[] = array(
+            fputcsv( $handle, array(
                 $row['date'],
                 $row['variant_name'],
                 $row['impressions'],
                 $row['conversions'],
                 $row['rate'],
-            );
+            ) );
         }
 
-        return $this->rows_to_csv( $rows );
-    }
+        rewind( $handle );
+        $csv = stream_get_contents( $handle );
+        fclose( $handle );
 
-    /**
-     * Convert an array of rows to RFC 4180-compliant CSV text.
-     *
-     * Implemented in pure PHP (no fopen/php://temp) so the plugin does
-     * not perform direct filesystem operations and remains compliant
-     * with the WordPress.org plugin guidelines.
-     *
-     * @param array $rows Array of row arrays.
-     * @return string CSV content.
-     */
-    private function rows_to_csv( $rows ) {
-        $lines = array();
-        foreach ( $rows as $row ) {
-            if ( empty( $row ) ) {
-                $lines[] = '';
-                continue;
-            }
-            $cells = array();
-            foreach ( $row as $cell ) {
-                $cell = (string) $cell;
-                if ( preg_match( '/[",\r\n]/', $cell ) ) {
-                    $cells[] = '"' . str_replace( '"', '""', $cell ) . '"';
-                } else {
-                    $cells[] = $cell;
-                }
-            }
-            $lines[] = implode( ',', $cells );
-        }
-
-        return implode( "\r\n", $lines ) . "\r\n";
+        return $csv;
     }
 
     /**

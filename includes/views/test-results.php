@@ -20,12 +20,6 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-// This file is an admin page template included from
-// ElementTest_Pro::render_results_page(); variables it consumes are
-// local to the including method, not globals.
-// phpcs:disable WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedVariableFound
-// phpcs:disable WordPress.Security.NonceVerification.Recommended
-
 // Ensure variables exist.
 $test       = isset( $test )       ? $test       : null;
 $variants   = isset( $variants )   ? $variants   : array();
@@ -138,7 +132,6 @@ $days  = max( 1, ceil( ( $now - $start ) / DAY_IN_SECONDS ) );
 			<span class="etr-kpi-label"><?php esc_html_e( 'Total Conversions', 'elementtest-pro' ); ?></span>
 			<span class="etr-kpi-value"><?php echo esc_html( number_format_i18n( $total_conversions ) ); ?></span>
 			<span class="etr-kpi-sub"><?php
-				/* translators: %s: overall conversion rate as a percentage value */
 				printf( esc_html__( '%s%% overall rate', 'elementtest-pro' ), esc_html( $overall_rate ) );
 			?></span>
 		</div>

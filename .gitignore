@@ -1,35 +1,35 @@
-# macOS
-.DS_Store
-.AppleDouble
-.LSOverride
-._*
+# Agent development workflow files
+CLAUDE.md
+claude-progress.txt
+feature_list.json
+init.sh
+.claude/
+.current-agent
+docs/history/sessions/
 
-# Editors / IDEs
+# OS files
+.DS_Store
+._*
+Thumbs.db
+
+# Local-only drive notes
+docs/kilaeua-settings.md
+
+# IDE
 .idea/
 .vscode/
 *.swp
 *.swo
-*~
 
-# Logs
-*.log
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
+# Build artifacts
+my-plugin/
+reports/
+*.zip
 
 # Dependencies
 node_modules/
-vendor/
-
-# Build artifacts
-dist/
-build/
-*.zip
 
 # Environment
 .env
-.env.local
-.env.*.local
-
-# WordPress
-wp-config.php
+workspace
+.gstack/
