@@ -27,6 +27,23 @@ ElementTest Pro allows you to A/B test various elements (CSS, copy, JS, images) 
 * Statistical significance calculator
 * JSON import/export for test portability
 * Report export (HTML and CSV) with WP-CLI support
+* Optional GA4 custom event forwarding for variant conversions (see the **GA4 Integration** section below for the full operator's guide)
+
+== GA4 Integration ==
+
+ElementTest Pro can forward variant conversions to Google Analytics 4 as custom events alongside the plugin's own database tracking. Enable it under **ElementTest > Settings > Google Analytics 4 Integration**. The full operator's guide also ships inside the plugin at **ElementTest > GA4**.
+
+**What it sends.** When the **Enable GA4 Events** setting is on AND a `gtag.js` tag is already loaded on the page, every variant conversion fires a `gtag('event', 'elementtest_converted', { test_id, test_name, variant_id, variant_name, revenue_value, transport_type: 'beacon' })` call in parallel with the existing plugin-DB record. The plugin does NOT load `gtag.js` itself - it piggybacks on whatever GA4 tag is already on your site (WooCommerce Google Analytics Pro, Site Kit by Google, Google Tag Manager, etc.). Conversion-only in 2.5.x; variant impression forwarding (`elementtest_variant_viewed`) is planned for a future release. The `transport_type: 'beacon'` flag is load-bearing - it parallels the plugin's existing sendBeacon AJAX, so click and form-submit conversion goals survive page navigation without dropping the GA4 event.
+
+**Three things people often conflate.** GA4 has three separate concepts that all need to line up before variant data is useful in your reports.
+
+1. **Confirming the event arrives at GA4.** DebugView (immediate, debug sessions only - install the GA Debugger browser extension or add ?gtm_debug=1 to the URL). Realtime (immediate, any session - GA4 > Reports > Realtime, look for `elementtest_converted` in the Event count card within ~30 seconds). Standard Events report (24-48 hour delay - GA4 > Reports > Engagement > Events, appears automatically once processed).
+
+2. **Marking it as a Key Event (formerly Conversion).** Wait until `elementtest_converted` appears under GA4 > Admin > Events, then toggle the **Mark as key event** star on its row. Or preemptively create it under GA4 > Admin > Key events > Create.
+
+3. **Seeing the parameters as report columns (custom dimensions).** The event parameters (`test_id`, `test_name`, `variant_id`, `variant_name`, `revenue_value`) show up in DebugView and Realtime immediately, but will NOT appear as columns / breakdowns / dimensions in standard GA4 reports until you register them as custom dimensions. GA4 > Admin > Custom definitions > Create custom dimensions, then add: Variant Test ID (Event scope, `test_id` parameter), Variant Test Name (Event, `test_name`), Variant ID (Event, `variant_id`), Variant Name (Event, `variant_name`), Variant Revenue (Event, use the **Metric** option not Dimension, `revenue_value` parameter). The metric option on revenue_value is important - that's what makes GA4 sum it across events. After you register them, expect another 24-48 hour delay before existing event history retroactively populates the new columns. Going forward, every new event populates them in near-realtime.
+
+**Known limitations.** Client-side only - visitors who block gtag.js (ad-blockers, strict privacy browsers, denied consent) won't generate GA4 events; the plugin dashboard remains the source of truth for conversion counts and GA4 numbers will be lower. The plugin does NOT load gtag.js - if your site has no GA4 tag, this feature is a no-op. `revenue_value` is a custom metric, not GA4's standard ecommerce revenue (which uses `value` + `currency` on `purchase` events) - register it as a custom metric per step 3 above for revenue totals in explorations. PII rule - GA4 disallows personally-identifiable info (emails, names) in event parameter values; test names and variant names are sent verbatim, so don't include PII. The plugin surfaces a warning next to the Test Name and Variant Name input fields when GA4 forwarding is on.
 
 == Installation ==
 

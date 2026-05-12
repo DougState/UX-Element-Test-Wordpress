@@ -297,6 +297,15 @@ class ElementTest_Pro {
             'elementtest-settings',
             array( $this, 'render_settings_page' )
         );
+
+        add_submenu_page(
+            'elementtest-pro',
+            __( 'GA4 Setup Guide', 'elementtest-pro' ),
+            __( 'GA4', 'elementtest-pro' ),
+            'manage_options',
+            'elementtest-ga4',
+            array( $this, 'render_ga4_page' )
+        );
     }
 
     /**
@@ -753,6 +762,23 @@ class ElementTest_Pro {
     public function render_settings_page() {
         $settings = get_option( 'elementtest_settings', array() );
         include ELEMENTTEST_PLUGIN_DIR . 'includes/views/settings.php';
+    }
+
+    /**
+     * Render the GA4 setup guide page.
+     *
+     * Static operator's guide explaining what the GA4 integration sends,
+     * how to register custom dimensions in the GA4 admin so the event
+     * parameters become report columns, how to mark `elementtest_converted`
+     * as a key event, where each piece of data shows up (DebugView, Realtime,
+     * standard reports), and how to verify the wire-up via the browser
+     * console. Pure docs page -- no settings, no AJAX.
+     *
+     * @since 2.5.1
+     */
+    public function render_ga4_page() {
+        $settings = get_option( 'elementtest_settings', array() );
+        include ELEMENTTEST_PLUGIN_DIR . 'includes/views/ga4.php';
     }
 }
 
