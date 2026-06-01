@@ -10,8 +10,8 @@
  *                    - test_id, name, description, status, page_url,
  *                    - element_selector, test_type, start_date, end_date,
  *                    - created_at, updated_at,
- *                    - variant_count, impressions, conversions, conversion_rate,
- *                    - confidence
+ *                    - variant_count, impressions, conversions,
+ *                    - confidence (best non-control variant, computed in render_admin_page)
  *   $counts  array  Associative counts by status:
  *                    - all, running, paused, draft, completed
  *
@@ -143,9 +143,6 @@ $base_url     = admin_url( 'admin.php?page=elementtest-pro' );
 					<th scope="col" class="manage-column column-conversions" style="width: 9%;">
 						<?php esc_html_e( 'Conversions', 'elementtest-pro' ); ?>
 					</th>
-					<th scope="col" class="manage-column column-rate" style="width: 9%;">
-						<?php esc_html_e( 'Conv. Rate', 'elementtest-pro' ); ?>
-					</th>
 					<th scope="col" class="manage-column column-confidence" style="width: 9%;">
 						<?php esc_html_e( 'Confidence', 'elementtest-pro' ); ?>
 					</th>
@@ -157,7 +154,7 @@ $base_url     = admin_url( 'admin.php?page=elementtest-pro' );
 			<tbody id="the-list">
 				<?php if ( empty( $tests ) ) : ?>
 					<tr class="no-items">
-						<td class="colspanchange" colspan="11">
+						<td class="colspanchange" colspan="10">
 							<?php esc_html_e( 'No tests found.', 'elementtest-pro' ); ?>
 						</td>
 					</tr>
@@ -182,7 +179,6 @@ $base_url     = admin_url( 'admin.php?page=elementtest-pro' );
 						$variant_count   = isset( $test->variant_count ) ? absint( $test->variant_count ) : 0;
 						$impressions     = isset( $test->impressions ) ? absint( $test->impressions ) : 0;
 						$conversions     = isset( $test->conversions ) ? absint( $test->conversions ) : 0;
-						$conversion_rate = isset( $test->conversion_rate ) ? floatval( $test->conversion_rate ) : 0.0;
 						$confidence      = isset( $test->confidence ) ? floatval( $test->confidence ) : 0.0;
 
 						$edit_url    = add_query_arg(
@@ -311,23 +307,6 @@ $base_url     = admin_url( 'admin.php?page=elementtest-pro' );
 							<?php echo esc_html( number_format_i18n( $conversions ) ); ?>
 						</td>
 
-						<!-- Conversion Rate -->
-						<td class="column-rate" data-colname="<?php esc_attr_e( 'Conv. Rate', 'elementtest-pro' ); ?>">
-							<?php
-							$rate_class = '';
-							if ( $conversion_rate >= 5.0 ) {
-								$rate_class = 'elementtest-rate-high';
-							} elseif ( $conversion_rate >= 2.0 ) {
-								$rate_class = 'elementtest-rate-medium';
-							} elseif ( $conversion_rate > 0 ) {
-								$rate_class = 'elementtest-rate-low';
-							}
-							?>
-							<span class="<?php echo esc_attr( $rate_class ); ?>">
-								<?php echo esc_html( number_format_i18n( $conversion_rate, 2 ) . '%' ); ?>
-							</span>
-						</td>
-
 						<!-- Confidence -->
 						<td class="column-confidence" data-colname="<?php esc_attr_e( 'Confidence', 'elementtest-pro' ); ?>">
 							<?php
@@ -387,9 +366,6 @@ $base_url     = admin_url( 'admin.php?page=elementtest-pro' );
 					</th>
 					<th scope="col" class="manage-column column-conversions">
 						<?php esc_html_e( 'Conversions', 'elementtest-pro' ); ?>
-					</th>
-					<th scope="col" class="manage-column column-rate">
-						<?php esc_html_e( 'Conv. Rate', 'elementtest-pro' ); ?>
 					</th>
 					<th scope="col" class="manage-column column-confidence">
 						<?php esc_html_e( 'Confidence', 'elementtest-pro' ); ?>
@@ -456,23 +432,6 @@ $base_url     = admin_url( 'admin.php?page=elementtest-pro' );
 	.elementtest-badge-completed {
 		background: #cce5ff;
 		color: #004085;
-	}
-
-	/**
-	 * Conversion Rate Colors
-	 */
-	.elementtest-rate-high {
-		color: #155724;
-		font-weight: 600;
-	}
-
-	.elementtest-rate-medium {
-		color: #856404;
-		font-weight: 600;
-	}
-
-	.elementtest-rate-low {
-		color: #721c24;
 	}
 
 	/**
@@ -551,7 +510,6 @@ $base_url     = admin_url( 'admin.php?page=elementtest-pro' );
 	.elementtest-table .column-variants,
 	.elementtest-table .column-impressions,
 	.elementtest-table .column-conversions,
-	.elementtest-table .column-rate,
 	.elementtest-table .column-confidence,
 	.elementtest-table .column-created {
 		text-align: left;

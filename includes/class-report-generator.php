@@ -296,6 +296,140 @@ class ElementTest_Report_Generator {
     }
 
     /**
+     * Compute the best (max) non-control confidence for many tests at once.
+     *
+     * Used by the admin tests list so the Confidence column reflects real
+     * statistics without running the full report query per test. Uses one
+     * aggregate query for all given test IDs and the shared z-test math, so
+     * results match the detail view and exports.
+     *
+     * @param int[] $test_ids Test IDs to compute confidence for.
+     * @return array<int,float> Map of test_id => best confidence percentage (0 when no significant data).
+     */
+    public function get_list_confidences( array $test_ids ) {
+        global $wpdb;
+
+        $ids = array_values( array_unique( array_filter( array_map( 'absint', $test_ids ) ) ) );
+        if ( empty( $ids ) ) {
+            return array();
+        }
+
+        $variants_table = $wpdb->prefix . 'elementtest_variants';
+        $events_table   = $wpdb->prefix . 'elementtest_events';
+
+        $placeholders = implode( ', ', array_fill( 0, count( $ids ), '%d' ) );
+
+        // phpcs:disable WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- table names from prefix; values are placeholders.
+        $rows = $wpdb->get_results(
+            $wpdb->prepare(
+                "SELECT v.test_id AS test_id,
+                    v.is_control AS is_control,
+                    COALESCE( SUM( CASE WHEN e.event_type = 'impression' THEN 1 ELSE 0 END ), 0 ) AS impressions,
+                    COALESCE( SUM( CASE WHEN e.event_type = 'conversion' THEN 1 ELSE 0 END ), 0 ) AS conversions
+                FROM {$variants_table} v
+                LEFT JOIN {$events_table} e ON e.variant_id = v.variant_id AND e.test_id = v.test_id
+                WHERE v.test_id IN ( {$placeholders} )
+                GROUP BY v.variant_id
+                ORDER BY v.is_control DESC, v.variant_id ASC",
+                $ids
+            )
+        );
+        // phpcs:enable WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+
+        // Group variant rows by test.
+        $by_test = array();
+        foreach ( (array) $rows as $row ) {
+            $by_test[ absint( $row->test_id ) ][] = $row;
+        }
+
+        $out = array();
+        foreach ( $ids as $id ) {
+            $out[ $id ] = 0;
+
+            if ( empty( $by_test[ $id ] ) ) {
+                continue;
+            }
+
+            $variants          = $by_test[ $id ];
+            $total_impressions = 0;
+            $total_conversions = 0;
+            $control_rate      = 0;
+            $control_n         = 0;
+
+            foreach ( $variants as $v ) {
+                $imp                = absint( $v->impressions );
+                $conv               = absint( $v->conversions );
+                $total_impressions += $imp;
+                $total_conversions += $conv;
+                if ( ! empty( $v->is_control ) && $imp > 0 ) {
+                    $control_rate = round( ( $conv / $imp ) * 100, 2 );
+                    $control_n    = $imp;
+                }
+            }
+
+            if ( $control_rate <= 0 || $control_n <= 0 ) {
+                continue;
+            }
+
+            $pooled_rate = $total_impressions > 0 ? $total_conversions / $total_impressions : 0;
+            $best        = 0;
+
+            foreach ( $variants as $v ) {
+                if ( ! empty( $v->is_control ) ) {
+                    continue;
+                }
+                $imp = absint( $v->impressions );
+                if ( $imp < 30 ) {
+                    continue;
+                }
+                $conv = absint( $v->conversions );
+                $rate = round( ( $conv / $imp ) * 100, 2 );
+
+                $se = $pooled_rate > 0
+                    ? sqrt( $pooled_rate * ( 1 - $pooled_rate ) * ( 1 / max( 1, $imp ) + 1 / max( 1, $control_n ) ) )
+                    : 0;
+                $z  = $se > 0
+                    ? abs( ( $rate / 100 ) - ( $control_rate / 100 ) ) / $se
+                    : 0;
+
+                $confidence = self::z_to_confidence( $z );
+                if ( $confidence > $best ) {
+                    $best = $confidence;
+                }
+            }
+
+            $out[ $id ] = $best;
+        }
+
+        return $out;
+    }
+
+    /**
+     * Map a two-proportion z-score to a confidence percentage bucket.
+     *
+     * Single source of truth for the confidence thresholds shared by the
+     * per-variant stats, the admin tests list, and exports.
+     *
+     * @param float $z Absolute z-score.
+     * @return int|float Confidence percentage.
+     */
+    public static function z_to_confidence( $z ) {
+        if ( $z >= 2.576 ) {
+            return 99;
+        }
+        if ( $z >= 1.96 ) {
+            return 95;
+        }
+        if ( $z >= 1.645 ) {
+            return 90;
+        }
+        if ( $z >= 1.28 ) {
+            return 80;
+        }
+        return round( min( 79, $z * 40 ) );
+    }
+
+    /**
      * Compute stats for a single variant (lift, confidence, verdict).
      *
      * Extracted from test-results.php so both the admin view and exports
@@ -332,17 +466,7 @@ class ElementTest_Report_Generator {
                 ? abs( ( $rate / 100 ) - ( $control_rate / 100 ) ) / $se
                 : 0;
 
-            if ( $z >= 2.576 ) {
-                $confidence = 99;
-            } elseif ( $z >= 1.96 ) {
-                $confidence = 95;
-            } elseif ( $z >= 1.645 ) {
-                $confidence = 90;
-            } elseif ( $z >= 1.28 ) {
-                $confidence = 80;
-            } else {
-                $confidence = round( min( 79, $z * 40 ) );
-            }
+            $confidence = self::z_to_confidence( $z );
         }
 
         if ( ! $is_control && $impressions > 0 ) {

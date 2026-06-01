@@ -3,7 +3,7 @@
  * Plugin Name: ElementTest Pro
  * Plugin URI: https://github.com/DougState/elementtest-pro
  * Description: A/B test various elements (CSS, copy, JS, images) of your pages and track conversion data to measure performance.
- * Version: 2.5.2
+ * Version: 2.5.3
  * Requires at least: 5.6
  * Tested up to: 6.7
  * Requires PHP: 7.4
@@ -23,7 +23,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 // Define plugin constants
-define( 'ELEMENTTEST_VERSION', '2.5.2' );
+define( 'ELEMENTTEST_VERSION', '2.5.3' );
 define( 'ELEMENTTEST_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'ELEMENTTEST_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
 define( 'ELEMENTTEST_PLUGIN_BASENAME', plugin_basename( __FILE__ ) );
@@ -428,13 +428,7 @@ class ElementTest_Pro {
             "SELECT t.*,
                 COALESCE( v.variant_count, 0 ) AS variant_count,
                 COALESCE( e.impressions, 0 )   AS impressions,
-                COALESCE( e.conversions, 0 )   AS conversions,
-                CASE
-                    WHEN COALESCE( e.impressions, 0 ) > 0
-                    THEN ROUND( ( COALESCE( e.conversions, 0 ) / COALESCE( e.impressions, 0 ) ) * 100, 2 )
-                    ELSE 0
-                END AS conversion_rate,
-                0 AS confidence
+                COALESCE( e.conversions, 0 )   AS conversions
             FROM {$tests_table} AS t
             LEFT JOIN (
                 SELECT test_id,
@@ -473,6 +467,17 @@ class ElementTest_Pro {
                 $counts[ $key ] = absint( $row->cnt );
             }
             $counts['all'] += absint( $row->cnt );
+        }
+
+        // Attach real statistical confidence (best non-control variant) per test.
+        if ( ! empty( $tests ) ) {
+            $generator    = new ElementTest_Report_Generator();
+            $confidences  = $generator->get_list_confidences( wp_list_pluck( $tests, 'test_id' ) );
+            foreach ( $tests as $test ) {
+                $test->confidence = isset( $confidences[ absint( $test->test_id ) ] )
+                    ? $confidences[ absint( $test->test_id ) ]
+                    : 0;
+            }
         }
 
         // Load the tests list template.

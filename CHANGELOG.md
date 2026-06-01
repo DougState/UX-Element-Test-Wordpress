@@ -2,6 +2,14 @@
 
 `readme.txt` remains the canonical WordPress.org release history for this plugin. This file mirrors the shipped release notes in a GitHub-friendly format.
 
+## 2.5.3
+
+> Admin tests-list readability pass (PR #51), merged to `main` after 2.5.2. See `DECISIONS.md` (2026-06-01 "Tests list shows real confidence; drops conversion rate") for rationale. JS `VERSION` constant in `assets/js/frontend.js` synced to 2.5.3 (per the 2.3.9 sync convention).
+
+- Feature: The **Confidence** column on the ElementTest tests list now shows real statistical confidence instead of a hardcoded `0.0%`. Previously the list query in `elementtest-pro.php` selected `0 AS confidence`, so every row read 0% even when the detail view reported a significant winner (e.g. 95%). The list now reflects the best (max) non-control variant confidence per test, computed with the same two-proportion z-test as the detail view and exports, so the three surfaces agree. Tests below the significance gate (any non-control variant needs ≥ 30 impressions, same as the detail view) or with no control data show `0.0%`. Implemented as a new `ElementTest_Report_Generator::get_list_confidences( array $test_ids )` that runs a single aggregate query for all visible tests (no per-test query storm), plus a shared `ElementTest_Report_Generator::z_to_confidence( $z )` helper now used by both the list and `compute_variant_stats()`. Files: `elementtest-pro.php`, `includes/class-report-generator.php`.
+
+- UX: Removed the **Conv. Rate** column from the tests list. At the list level the conversion rate without its control baseline is noise; the meaningful signal is the Confidence column (does this test have a result worth clicking into?). Per-variant conversion rates remain on the detail view and in HTML/CSV exports — only the list column is gone. The list SQL no longer computes `conversion_rate`, and the now-unused `.elementtest-rate-*` styles were removed. Files: `includes/views/tests-list.php`.
+
 ## 2.5.2
 
 > Two correctness fixes for conversion page-scope matching (PRs #49 and #50), merged to `main` after 2.5.1. Both are silent data-integrity bugs — one drops real conversions, the other invents false ones — with no user-facing error in either case. See `DECISIONS.md` (2026-06-01 entries) for the architectural rationale. JS `VERSION` constant in `assets/js/frontend.js` synced to 2.5.2 (per the 2.3.9 sync convention).

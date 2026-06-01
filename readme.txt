@@ -3,7 +3,7 @@ Contributors: Doug Wagner
 Tags: ab-testing, split-testing, conversion, optimization, analytics
 Requires at least: 5.6
 Tested up to: 6.7
-Stable tag: 2.5.2
+Stable tag: 2.5.3
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -62,6 +62,11 @@ Yes, ElementTest Pro is designed to work with popular page builders like Element
 All testing data is stored in your WordPress database. No external services are used.
 
 == Changelog ==
+
+= 2.5.3 =
+* Improvement: The **Confidence** column on the tests list now shows each test's real statistical confidence instead of always reading `0.0%`. It is computed with the same significance test the test detail view and exports already use, so the number in the list matches what you see when you open the test (e.g. a test the detail view calls a 95% winner now reads 95% in the list too). Tests without enough data yet — any non-control variant needs at least 30 impressions — still show `0.0%`.
+* Change: Removed the **Conversion Rate** column from the tests list. A conversion rate shown without its control baseline is not actionable at a glance; the Confidence column is the signal that tells you whether a test has a result worth opening. Per-variant conversion rates are still shown on the test detail view and in the HTML/CSV exports.
+* Internal: JS `VERSION` constant in `assets/js/frontend.js` synced to 2.5.3 to match the plugin version (per the 2.3.9 sync convention).
 
 = 2.5.2 =
 * Fix: Conversion tracking on bare vs `www.` host variants (PR #49). Non-pageview conversions (click, form submit, custom event, add-to-cart) were silently dropped when a test's configured page URL used one host form (e.g. `example.com`) but the visitor was served the same page on the other (`www.example.com`), or vice versa. The frontend activates tests by path only, so those visitors saw variants and recorded impressions, but the conversion AJAX failed the server-side page-scope check and lost the conversion with no error. Root cause: `ElementTest_Frontend::check_active_tests()` strips protocol and host for delivery matching, while `ElementTest_Ajax_Handler::normalize_conversion_url()` compared the full host + port + path. Fix: canonicalize a leading `www.` in `normalize_conversion_url()` before the host/port/path comparison so the conversion-write check matches the host-agnostic, path-based frontend delivery. Different paths and unrelated domains still fail the check.
