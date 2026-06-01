@@ -112,7 +112,7 @@ After you register them, expect **another 24-48 hour delay** before existing eve
 
 - **Client-side only.** Visitors who block `gtag.js` (ad-blockers, strict privacy browsers, denied consent) won't generate GA4 events. The plugin's own dashboard remains the source of truth for conversion counts. GA4 numbers will be lower than plugin DB numbers.
 - **The plugin does NOT load `gtag.js`.** It piggybacks on an existing GA4 tag. If your site has no GA4 tag, this feature is a no-op.
-- `**revenue_value` is a custom metric, not GA4's standard ecommerce revenue.** GA4's ecommerce reports look at the `value` + `currency` parameters on event names like `purchase`. The plugin uses `revenue_value` to match the plugin's own database field. Register it as a custom metric (above) and build explorations for revenue analysis.
+- **`revenue_value` is a custom metric, not GA4's standard ecommerce revenue.** GA4's ecommerce reports look at the `value` + `currency` parameters on event names like `purchase`. The plugin uses `revenue_value` to match the plugin's own database field. Register it as a custom metric (above) and build explorations for revenue analysis.
 - **PII rule.** GA4 explicitly disallows personally-identifiable info (emails, names) in event parameter values. Test names and variant names are sent verbatim — don't include PII. The plugin surfaces a warning next to the Test Name and Variant Name input fields when GA4 forwarding is on.
 
 ### Verifying the wire-up
