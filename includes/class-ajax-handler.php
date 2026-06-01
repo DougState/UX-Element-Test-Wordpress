@@ -1678,6 +1678,9 @@ class ElementTest_Ajax_Handler {
 		if ( '' === $host ) {
 			return '';
 		}
+		if ( 0 === strpos( $host, 'www.' ) ) {
+			$host = substr( $host, 4 );
+		}
 
 		$port = '';
 		if ( isset( $url_parts['port'] ) ) {

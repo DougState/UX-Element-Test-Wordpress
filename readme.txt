@@ -3,7 +3,7 @@ Contributors: Doug Wagner
 Tags: ab-testing, split-testing, conversion, optimization, analytics
 Requires at least: 5.6
 Tested up to: 6.7
-Stable tag: 2.5.1
+Stable tag: 2.5.2
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -62,6 +62,12 @@ Yes, ElementTest Pro is designed to work with popular page builders like Element
 All testing data is stored in your WordPress database. No external services are used.
 
 == Changelog ==
+
+= 2.5.2 =
+* Fix: Conversion tracking on bare vs `www.` host variants (PR #49). Non-pageview conversions (click, form submit, custom event, add-to-cart) were silently dropped when a test's configured page URL used one host form (e.g. `example.com`) but the visitor was served the same page on the other (`www.example.com`), or vice versa. The frontend activates tests by path only, so those visitors saw variants and recorded impressions, but the conversion AJAX failed the server-side page-scope check and lost the conversion with no error. Root cause: `ElementTest_Frontend::check_active_tests()` strips protocol and host for delivery matching, while `ElementTest_Ajax_Handler::normalize_conversion_url()` compared the full host + port + path. Fix: canonicalize a leading `www.` in `normalize_conversion_url()` before the host/port/path comparison so the conversion-write check matches the host-agnostic, path-based frontend delivery. Different paths and unrelated domains still fail the check.
+* Fix: Cached cross-page pageview conversion over-counting (PR #50). A full-page cache keyed only by path could serve HTML generated for a query-string-specific cross-page pageview goal (e.g. `/checkout/order-received/?key=wc_order_*`) to a later visitor on the same path with a different query string. The browser trusted the server-baked goal payload and recorded the conversion directly, producing a false conversion (and, when GA4 forwarding was enabled, a false `elementtest_converted` event) and corrupting A/B data on cached checkout/thank-you flows. Fix: cross-page conversion-only pageview goals now re-validate the live browser URL with the same matcher normal pageview goals use before recording. Triggers containing `?` or `#` still require an exact URL match.
+* Fix: Client-side pageview path matching now mirrors the server (PR #50). A new path-normalization step lowercases and trims trailing slashes from both the current path and the trigger before comparison, so the cached-safe client re-check never rejects a conversion the server already approved over a trailing-slash or letter-case difference.
+* Internal: JS `VERSION` constant in `assets/js/frontend.js` synced to 2.5.2 to match the plugin version (per the 2.3.9 sync convention).
 
 = 2.5.1 =
 * (2.5.0 was prepared but never tagged or shipped; its entries are captured into 2.5.1 below. The 2.5.0 → 2.5.1 bump rolls in a WooCommerce-specific Add-to-Cart conversion fix discovered during manual validation on a production site — the original 2.5.0 added gtag forwarding only inside `trackConversion()` and missed the parallel `trackAddToCartConversion()` codepath, so WC Add-to-Cart goals fired correctly to the plugin DB but never reached GA4. The 2.5.1 fix extracts a shared `fireGa4ConversionEvent()` helper called from both conversion-firing functions, so every goal type now emits the `elementtest_converted` event identically.)

@@ -31,7 +31,7 @@ try {
 	// Constants & State
 	// =========================================================================
 
-	var VERSION = '2.5.1';
+	var VERSION = '2.5.2';
 	var OBSERVER_TIMEOUT = 8000; // Max time (ms) to wait for elements via MutationObserver.
 	var ANTIFLICKER_TIMEOUT = 3000; // Max time (ms) before forcing anti-flicker removal.
 
@@ -659,6 +659,36 @@ try {
 	// =========================================================================
 
 	/**
+	 * Normalize a URL/path for pageview goal comparison.
+	 *
+	 * Mirrors the server-side path comparison for non-query pageview goals so
+	 * trailing slashes and URL casing do not make cached-safe client checks
+	 * stricter than the PHP pre-filter.
+	 *
+	 * @param {string} url URL or path to normalize.
+	 * @return {string} Normalized path.
+	 */
+	function normalizePageviewPath( url ) {
+		var path = url || '/';
+
+		try {
+			path = new URL( path, window.location.origin ).pathname;
+		} catch ( e ) {}
+
+		path = path.toLowerCase().replace( /\/+$/, '' );
+
+		if ( ! path ) {
+			path = '/';
+		}
+
+		if ( path.charAt( 0 ) !== '/' ) {
+			path = '/' + path;
+		}
+
+		return path;
+	}
+
+	/**
 	 * Set up event listeners for all conversion goals of a test.
 	 *
 	 * Uses event delegation on the document for click and form_submit goals
@@ -769,7 +799,9 @@ try {
 		}
 
 		var currentPath = window.location.pathname;
+		var currentPathNormalized = normalizePageviewPath( currentPath );
 		var currentUrl = window.location.href;
+		var currentRelativeUrl = currentPath + window.location.search + window.location.hash;
 		var matched = false;
 
 		// Normalize the trigger URL by trimming whitespace.
@@ -782,26 +814,22 @@ try {
 			var hasQueryOrHash = prefix.indexOf( '?' ) !== -1 || prefix.indexOf( '#' ) !== -1;
 
 			if ( hasQueryOrHash ) {
-				var currentRelativeUrl = currentPath + window.location.search + window.location.hash;
 				matched = ( currentUrl.indexOf( prefix ) === 0 )
 					|| ( currentRelativeUrl.indexOf( prefix ) === 0 );
 			} else {
-				var prefixPath;
-
-				try {
-					prefixPath = new URL( prefix, window.location.origin ).pathname;
-				} catch ( e ) {
-					prefixPath = prefix;
-				}
-
-				var prefixNoSlash = prefixPath.replace( /\/+$/, '' ) || '/';
-				matched = ( currentPath === prefixNoSlash )
+				var prefixNoSlash = normalizePageviewPath( prefix );
+				matched = ( currentPathNormalized === prefixNoSlash )
 					|| ( prefixNoSlash === '/' )
-					|| ( currentPath.indexOf( prefixNoSlash + '/' ) === 0 );
+					|| ( currentPathNormalized.indexOf( prefixNoSlash + '/' ) === 0 );
 			}
 		} else {
-			// Exact match against path or full URL.
-			matched = ( currentPath === triggerUrl ) || ( currentUrl === triggerUrl );
+			// Exact query/hash triggers must match the browser URL exactly.
+			// Path-only triggers use normalized path comparison, like PHP.
+			if ( triggerUrl.indexOf( '?' ) !== -1 || triggerUrl.indexOf( '#' ) !== -1 ) {
+				matched = ( currentUrl === triggerUrl ) || ( currentRelativeUrl === triggerUrl );
+			} else {
+				matched = ( currentPathNormalized === normalizePageviewPath( triggerUrl ) );
+			}
 		}
 
 		if ( matched ) {
@@ -1740,11 +1768,14 @@ try {
 				var goals = test.goals;
 				for ( var g = 0; g < goals.length; g++ ) {
 					var goal = goals[ g ];
-					trackConversion(
+					// Re-check in the browser so cached HTML cannot fire a
+					// conversion for a different query-string URL on the same path.
+					setupPageviewGoal(
 						testId,
 						assignedVariantId,
 						goal.conversion_id,
-						goal.revenue_value || 0
+						goal.revenue_value || 0,
+						goal.trigger_event
 					);
 				}
 			} catch ( err ) {
