@@ -144,6 +144,39 @@ ss -tlnp | grep -E ':80|:443'
 
 If only Apache is listening on 80/443, select **None**. If Nginx is on 80/443 with Apache on a backend port, select **Nginx / Managed Hosting**.
 
+### How forwarded IP headers are trusted
+
+Forwarded headers (`X-Forwarded-For`, `X-Real-IP`, `CF-Connecting-IP`, or your custom header) are spoofable by any client that connects to WordPress directly, so ElementTest only honors them when the **direct connection** (`REMOTE_ADDR`) comes from a trusted proxy:
+
+- **Cloudflare** — trusts requests arriving from Cloudflare's published edge IP ranges.
+- **Nginx / Managed Hosting** — trusts requests arriving from loopback and private (RFC1918) ranges, which covers same-host and internal-network reverse proxies.
+- **Custom** — ships no trusted ranges by default; you must declare the IP(s) your proxy connects from (see below).
+
+When the direct connection is **not** a trusted proxy, forwarded headers are ignored and the direct connection IP is used. A request that bypasses the proxy and hits `admin-ajax.php` directly therefore cannot forge its IP to evade rate limiting or deduplication.
+
+### Advanced: customizing trusted proxies
+
+Two filters let you override the defaults for unusual setups.
+
+`elementtest_trusted_proxy_headers` — the `$_SERVER` keys to read the real client IP from:
+
+```php
+add_filter( 'elementtest_trusted_proxy_headers', function () {
+    return array( 'HTTP_CF_CONNECTING_IP' );
+} );
+```
+
+`elementtest_trusted_proxy_cidrs` — the IP ranges your proxy connects **from**. Add this if your proxy (or load balancer) reaches WordPress from a public IP not covered by the presets above; otherwise its forwarded headers will be ignored:
+
+```php
+add_filter( 'elementtest_trusted_proxy_cidrs', function ( $cidrs ) {
+    $cidrs[] = '203.0.113.0/24'; // Your load balancer's egress range.
+    return $cidrs;
+} );
+```
+
+Both IPv4 and IPv6 CIDRs are supported. A bare IP (no `/`) is treated as a single host.
+
 ## Report Export (WP-CLI)
 
 Export test reports from the command line for offline analysis or stakeholder sharing:

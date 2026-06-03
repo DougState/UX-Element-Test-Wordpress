@@ -79,8 +79,9 @@ class ElementTest_Pro {
         add_action( 'admin_notices', array( $this, 'maybe_show_proxy_notice' ) );
         add_action( 'wp_ajax_elementtest_dismiss_proxy_notice', array( $this, 'dismiss_proxy_notice' ) );
 
-        // Wire the proxy_type setting into the visitor IP filter.
+        // Wire the proxy_type setting into the visitor IP filters.
         add_filter( 'elementtest_trusted_proxy_headers', array( $this, 'resolve_proxy_headers' ) );
+        add_filter( 'elementtest_trusted_proxy_cidrs', array( $this, 'resolve_proxy_cidrs' ) );
 
         // Load includes.
         $this->load_includes();
@@ -114,6 +115,71 @@ class ElementTest_Pro {
         }
 
         return $headers;
+    }
+
+    /**
+     * Map the proxy_type setting to trusted-proxy source CIDRs.
+     *
+     * Forwarded IP headers are only honored when the direct connection
+     * (REMOTE_ADDR) falls inside one of these ranges, so a request that
+     * bypasses the proxy cannot spoof its IP. Sites whose proxy connects
+     * from a public IP not covered by the defaults below should add their
+     * proxy's CIDR via the `elementtest_trusted_proxy_cidrs` filter.
+     *
+     * @since  2.5.4
+     * @param  array $cidrs Existing trusted CIDRs (from code-level filters).
+     * @return array
+     */
+    public function resolve_proxy_cidrs( $cidrs ) {
+        $settings   = get_option( 'elementtest_settings', array() );
+        $proxy_type = isset( $settings['proxy_type'] ) ? $settings['proxy_type'] : 'none';
+
+        switch ( $proxy_type ) {
+            case 'cloudflare':
+                // Cloudflare's published edge ranges (https://www.cloudflare.com/ips/).
+                $cidrs = array_merge( $cidrs, array(
+                    '173.245.48.0/20',
+                    '103.21.244.0/22',
+                    '103.22.200.0/22',
+                    '103.31.4.0/22',
+                    '141.101.64.0/18',
+                    '108.162.192.0/18',
+                    '190.93.240.0/20',
+                    '188.114.96.0/20',
+                    '197.234.240.0/22',
+                    '198.41.128.0/17',
+                    '162.158.0.0/15',
+                    '104.16.0.0/13',
+                    '104.24.0.0/14',
+                    '172.64.0.0/13',
+                    '131.0.72.0/22',
+                    '2400:cb00::/32',
+                    '2606:4700::/32',
+                    '2803:f800::/32',
+                    '2405:b500::/32',
+                    '2405:8100::/32',
+                    '2a06:98c0::/29',
+                    '2c0f:f248::/32',
+                ) );
+                break;
+            case 'nginx':
+                // Loopback + RFC1918 private ranges: the same-host or
+                // internal-network reverse proxy used by most managed hosts.
+                $cidrs = array_merge( $cidrs, array(
+                    '127.0.0.0/8',
+                    '10.0.0.0/8',
+                    '172.16.0.0/12',
+                    '192.168.0.0/16',
+                    '::1/128',
+                    'fc00::/7',
+                ) );
+                break;
+            // 'custom' ships no default CIDRs — the admin supplies the
+            // proxy's address range via the elementtest_trusted_proxy_cidrs
+            // filter. Without it, forwarded headers are ignored (secure default).
+        }
+
+        return $cidrs;
     }
 
     /**
