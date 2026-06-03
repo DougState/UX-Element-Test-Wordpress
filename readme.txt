@@ -3,7 +3,7 @@ Contributors: Doug Wagner
 Tags: ab-testing, split-testing, conversion, optimization, analytics
 Requires at least: 5.6
 Tested up to: 6.7
-Stable tag: 2.5.3
+Stable tag: 2.5.4
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -62,6 +62,11 @@ Yes, ElementTest Pro is designed to work with popular page builders like Element
 All testing data is stored in your WordPress database. No external services are used.
 
 == Changelog ==
+
+= 2.5.4 =
+* Fix: Visitor IP spoofing via forwarded headers (PR #53). When a reverse-proxy preset was enabled, the plugin trusted `X-Forwarded-For`, `X-Real-IP`, `CF-Connecting-IP`, or a custom header without verifying the request actually arrived through the proxy. An attacker POSTing directly to the tracking AJAX endpoint could set the header to any IP, bypassing rate limits and deduplication and forging analytics data. Forwarded headers are now honored only when the direct connection IP falls inside a trusted proxy range; otherwise the plugin uses the direct IP. Cloudflare and nginx presets include default ranges; custom setups must declare their proxy's egress CIDR via the `elementtest_trusted_proxy_cidrs` filter or forwarded headers are ignored (secure default). Default `proxy_type=none` is unchanged.
+* Fix: IPv4-mapped IPv6 proxy addresses (e.g. `::ffff:10.1.2.3`) now match internal proxy CIDRs correctly, so legitimate nginx/private-network proxies are recognized instead of falling back to the mapped address and ignoring forwarded headers.
+* Internal: JS `VERSION` constant in `assets/js/frontend.js` synced to 2.5.4 to match the plugin version (per the 2.3.9 sync convention).
 
 = 2.5.3 =
 * Improvement: The **Confidence** column on the tests list now shows each test's real statistical confidence instead of always reading `0.0%`. It is computed with the same significance test the test detail view and exports already use, so the number in the list matches what you see when you open the test (e.g. a test the detail view calls a 95% winner now reads 95% in the list too). Tests without enough data yet — any non-control variant needs at least 30 impressions — still show `0.0%`.

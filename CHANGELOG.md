@@ -2,6 +2,14 @@
 
 `readme.txt` remains the canonical WordPress.org release history for this plugin. This file mirrors the shipped release notes in a GitHub-friendly format.
 
+## 2.5.4
+
+> Security fix for visitor IP spoofing (PR #53, closes #52), merged to `main` after 2.5.3. See `DECISIONS.md` (2026-06-03 "Forwarded headers require trusted-proxy source") for rationale. JS `VERSION` constant in `assets/js/frontend.js` synced to 2.5.4 (per the 2.3.9 sync convention).
+
+- Fix: **Forwarded IP headers no longer trusted without verifying the request came through the proxy.** When a reverse-proxy preset was enabled in Settings → Reverse Proxy / CDN, `ElementTest_Visitor::get_visitor_ip()` honored `X-Forwarded-For`, `X-Real-IP`, `CF-Connecting-IP`, or a custom header whenever the preset was set — without checking that `REMOTE_ADDR` was actually the proxy. An unauthenticated client POSTing directly to `admin-ajax.php?action=elementtest_track_impression` (or `_conversion`) could set the header to any value. That spoofed IP flowed into `user_hash`, dedupe, the invalid-request cap, and per-test rate-limit keys, letting an attacker forge analytics and amplify DB writes past the intended per-IP caps (validated on #52: rotating the spoofed `X-Forwarded-For` inserted distinct impression rows). Fix: forwarded headers are now honored **only when the direct connection (`REMOTE_ADDR`) falls inside a trusted-proxy CIDR**; direct hits fall back to `REMOTE_ADDR`. New `elementtest_trusted_proxy_cidrs` filter, wired to the `proxy_type` setting by `ElementTest_Pro::resolve_proxy_cidrs()`: Cloudflare → published edge IPv4+IPv6 ranges; nginx → loopback + RFC1918 private ranges; custom → none until the admin adds CIDRs via the filter (secure default). New IPv4/IPv6-aware `ip_in_cidr()` matcher using `inet_pton` + prefix mask; cross-family comparisons and malformed input never match. Files: `includes/class-visitor.php`, `elementtest-pro.php`, `README.md`. Standalone regression checks in `tests/test-visitor-ip.php` (10 assertions). (PR #53)
+
+- Fix: **IPv4-mapped IPv6 addresses failing CIDR match.** When `REMOTE_ADDR` was an IPv4-mapped IPv6 address (e.g. `::ffff:10.1.2.3`), `inet_pton` returned 16 bytes while IPv4 CIDRs like `10.0.0.0/8` parsed to 4 bytes; the length check rejected the match, so `is_trusted_proxy()` always returned false for legitimate internal proxies reporting mapped addresses and forwarded headers were ignored. Normalize IPv4-mapped IPv6 binary representations to their 4-byte IPv4 equivalent before comparison, adjusting prefix length when the subnet itself is in mapped form. Files: `includes/class-visitor.php`. (PR #53)
+
 ## 2.5.3
 
 > Admin tests-list readability pass (PR #51), merged to `main` after 2.5.2. See `DECISIONS.md` (2026-06-01 "Tests list shows real confidence; drops conversion rate") for rationale. JS `VERSION` constant in `assets/js/frontend.js` synced to 2.5.3 (per the 2.3.9 sync convention).
