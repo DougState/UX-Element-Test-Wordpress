@@ -3,7 +3,7 @@ Contributors: Doug Wagner
 Tags: ab-testing, split-testing, conversion, optimization, analytics
 Requires at least: 5.6
 Tested up to: 6.7
-Stable tag: 2.5.5
+Stable tag: 2.5.6
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -62,6 +62,10 @@ Yes, ElementTest Pro is designed to work with popular page builders like Element
 All testing data is stored in your WordPress database. No external services are used.
 
 == Changelog ==
+
+= 2.5.6 =
+* Security: Public impression and conversion writes now require a server-minted signed assignment proof cookie (PRs #56 and #57, closes #54). The public AJAX nonce is a CSRF control, not proof that a visitor was assigned a variant — an unauthenticated client could harvest valid test/variant IDs from the page and POST directly to the tracking endpoints, forging impressions, conversions, and (for custom-event goals) arbitrary revenue. Fix: `elementtest_get_variant_assignment` is now the server-authoritative gate — it validates page scope, chooses the variant server-side, and sets an HttpOnly `elementtest_assignment_<test_id>` cookie bound to visitor hash, variant, and expiry. Impression and conversion handlers reject writes without a matching proof cookie. Public custom-event conversions default to the DB-stored goal revenue; sites that knowingly accept client-supplied dynamic revenue must opt in via the `elementtest_allow_public_custom_event_revenue` filter. The frontend requests assignment before applying variants, recording impressions, or registering conversion listeners. Cross-page pageview goals depend on the proof cookie created when the visitor saw the source test page; sessions without proof may need one fresh source-page visit before cross-page conversions count.
+* Internal: JS `VERSION` constant in `assets/js/frontend.js` synced to 2.5.6 to match the plugin version (per the 2.3.9 sync convention).
 
 = 2.5.5 =
 * Fix: Cross-page pageview goals on subdirectory WordPress installs (PR #55). When WordPress lives in a subdirectory (e.g. `example.com/blog/`), the server correctly detected pageview conversion goals on thank-you or order-received pages, but the client-side URL re-check added in 2.5.2 did not strip the install's home path before comparing paths. Visitors reached the goal page and the plugin loaded, yet conversions were silently dropped because `/blog/thank-you` did not match a trigger stored as `/thank-you`. Fix: pass the WordPress home path to the frontend and strip it inside the pageview path normalizer, mirroring the PHP path logic already used for test delivery and goal detection. Path-boundary rules and exact query-string matching from 2.5.2 are unchanged.

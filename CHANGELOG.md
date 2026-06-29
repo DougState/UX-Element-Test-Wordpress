@@ -2,6 +2,12 @@
 
 `readme.txt` remains the canonical WordPress.org release history for this plugin. This file mirrors the shipped release notes in a GitHub-friendly format.
 
+## 2.5.6
+
+> Security fix for unauthenticated public tracking forgery (PRs #56 and #57, closes #54), merged to `main` after 2.5.5. See `DECISIONS.md` (2026-06-29 "Public tracking writes require signed assignment proof") for rationale. JS `VERSION` constant in `assets/js/frontend.js` synced to 2.5.6 (per the 2.3.9 sync convention).
+
+- Fix: **Public tracking writes require signed assignment proof.** The public tracking endpoints accept guest traffic, and the public nonce plus test/variant metadata are visible on any page with running tests. An unauthenticated client could harvest those IDs and POST directly to `elementtest_track_impression` or `elementtest_track_conversion`, forging analytics and (for custom-event goals) supplying arbitrary dynamic revenue within the clamp. Fix: `elementtest_get_variant_assignment` is now the server-authoritative assignment gate — it validates page scope, chooses the variant server-side, and sets a signed HttpOnly `elementtest_assignment_<test_id>` cookie bound to `test_id`, `variant_id`, server-derived visitor hash, and expiry. Impression and conversion writes must present that proof cookie for the same visitor/test/variant tuple before inserting events. Public custom-event conversions default to the DB-stored goal revenue; sites that knowingly accept dynamic client revenue must opt in with `elementtest_allow_public_custom_event_revenue`. Frontend test processing requests assignment before applying variants, recording impressions, or registering conversion listeners. Conversion-only pageview goals depend on the proof cookie created when the visitor saw the source test page; old sessions without proof may need one fresh source-page visit before cross-page conversions count. Files: `includes/class-ajax-handler.php`, `assets/js/frontend.js`. (PRs #56, #57)
+
 ## 2.5.5
 
 > Correctness fix for cross-page pageview goals on subdirectory WordPress installs (PR #55), merged to `main` after 2.5.4. Reinforces the PR #50 client/server matcher alignment — PHP already stripped the install home path; JS did not after the cached-safe re-check landed. JS `VERSION` constant in `assets/js/frontend.js` synced to 2.5.5 (per the 2.3.9 sync convention).

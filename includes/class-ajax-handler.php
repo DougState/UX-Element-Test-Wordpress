@@ -173,6 +173,141 @@ class ElementTest_Ajax_Handler {
 	}
 
 	/**
+	 * Build the cookie name that stores server-issued assignment proof.
+	 *
+	 * @since 2.5.6
+	 * @param int $test_id Test ID.
+	 * @return string
+	 */
+	private function get_assignment_cookie_name( $test_id ) {
+		return 'elementtest_assignment_' . absint( $test_id );
+	}
+
+	/**
+	 * Create a signed assignment token for a visitor/test/variant tuple.
+	 *
+	 * @since 2.5.6
+	 * @param int    $test_id    Test ID.
+	 * @param int    $variant_id Variant ID.
+	 * @param string $user_hash  Server-derived visitor hash.
+	 * @param int    $expires_at Unix timestamp when the token expires.
+	 * @return string Signed token.
+	 */
+	private function create_assignment_token( $test_id, $variant_id, $user_hash, $expires_at ) {
+		$payload = array(
+			'test_id'    => absint( $test_id ),
+			'variant_id' => absint( $variant_id ),
+			'user_hash'  => (string) $user_hash,
+			'expires_at' => absint( $expires_at ),
+		);
+
+		$body      = rtrim( strtr( base64_encode( wp_json_encode( $payload ) ), '+/', '-_' ), '=' );
+		$signature = hash_hmac( 'sha256', $body, wp_salt( 'auth' ) );
+
+		return $body . '.' . $signature;
+	}
+
+	/**
+	 * Decode and verify a signed assignment token.
+	 *
+	 * @since 2.5.6
+	 * @param string $token Signed token from the assignment proof cookie.
+	 * @return array|null Payload array on success; null on failure.
+	 */
+	private function parse_assignment_token( $token ) {
+		$token = trim( (string) $token );
+		if ( '' === $token ) {
+			return null;
+		}
+
+		$parts = explode( '.', $token, 2 );
+		if ( 2 !== count( $parts ) ) {
+			return null;
+		}
+
+		list( $body, $signature ) = $parts;
+		$expected_signature       = hash_hmac( 'sha256', $body, wp_salt( 'auth' ) );
+		if ( ! hash_equals( $expected_signature, $signature ) ) {
+			return null;
+		}
+
+		$base64_body = strtr( $body, '-_', '+/' );
+		$padding     = strlen( $base64_body ) % 4;
+		if ( $padding ) {
+			$base64_body .= str_repeat( '=', 4 - $padding );
+		}
+
+		$decoded = base64_decode( $base64_body, true );
+		if ( false === $decoded ) {
+			return null;
+		}
+
+		$payload = json_decode( $decoded, true );
+		return is_array( $payload ) ? $payload : null;
+	}
+
+	/**
+	 * Set the HttpOnly assignment proof cookie for the selected variant.
+	 *
+	 * @since 2.5.6
+	 * @param int    $test_id    Test ID.
+	 * @param int    $variant_id Variant ID.
+	 * @param string $user_hash  Server-derived visitor hash.
+	 */
+	private function set_assignment_proof_cookie( $test_id, $variant_id, $user_hash ) {
+		$ttl = (int) apply_filters( 'elementtest_assignment_token_ttl', DAY_IN_SECONDS );
+		if ( $ttl <= 0 ) {
+			$ttl = DAY_IN_SECONDS;
+		}
+
+		$expires_at = time() + $ttl;
+		$token      = $this->create_assignment_token( $test_id, $variant_id, $user_hash, $expires_at );
+		$name       = $this->get_assignment_cookie_name( $test_id );
+		$path       = ( defined( 'COOKIEPATH' ) && COOKIEPATH ) ? COOKIEPATH : '/';
+		$options    = array(
+			'expires'  => $expires_at,
+			'path'     => $path,
+			'secure'   => is_ssl(),
+			'httponly' => true,
+			'samesite' => 'Lax',
+		);
+
+		if ( defined( 'COOKIE_DOMAIN' ) && COOKIE_DOMAIN ) {
+			$options['domain'] = COOKIE_DOMAIN;
+		}
+
+		setcookie( $name, $token, $options );
+		$_COOKIE[ $name ] = $token;
+	}
+
+	/**
+	 * Verify that the current visitor has a valid assignment proof cookie.
+	 *
+	 * @since 2.5.6
+	 * @param int    $test_id    Test ID.
+	 * @param int    $variant_id Variant ID.
+	 * @param string $user_hash  Server-derived visitor hash.
+	 * @return bool
+	 */
+	private function has_valid_assignment_proof( $test_id, $variant_id, $user_hash ) {
+		$name = $this->get_assignment_cookie_name( $test_id );
+		$raw  = isset( $_COOKIE[ $name ] ) ? sanitize_text_field( wp_unslash( $_COOKIE[ $name ] ) ) : '';
+
+		$payload = $this->parse_assignment_token( $raw );
+		if ( null === $payload ) {
+			return false;
+		}
+
+		if ( empty( $payload['expires_at'] ) || (int) $payload['expires_at'] < time() ) {
+			return false;
+		}
+
+		return absint( $payload['test_id'] ) === absint( $test_id )
+			&& absint( $payload['variant_id'] ) === absint( $variant_id )
+			&& hash_equals( (string) $payload['user_hash'], (string) $user_hash );
+	}
+
+	/**
 	 * Sanitize the variant `changes` payload according to the test type.
 	 *
 	 * The `changes` column is polymorphic — its content type depends on
@@ -1274,6 +1409,14 @@ class ElementTest_Ajax_Handler {
 			);
 		}
 
+		if ( ! $this->has_valid_assignment_proof( $test_id, $variant_id, $user_hash ) ) {
+			$this->record_invalid_request();
+			status_header( 403 );
+			wp_send_json_error(
+				array( 'message' => __( 'Valid variant assignment proof is required.', 'elementtest-pro' ) )
+			);
+		}
+
 		// Test and variant are valid. Apply the per-(IP, test, event) rate limit
 		// now — at this point transients cannot be fanned out by rotating test_id.
 		if ( $this->check_ip_rate_limit( $test_id, 'impression' ) ) {
@@ -1422,6 +1565,14 @@ class ElementTest_Ajax_Handler {
 			);
 		}
 
+		if ( ! $this->has_valid_assignment_proof( $test_id, $variant_id, $user_hash ) ) {
+			$this->record_invalid_request();
+			status_header( 403 );
+			wp_send_json_error(
+				array( 'message' => __( 'Valid variant assignment proof is required.', 'elementtest-pro' ) )
+			);
+		}
+
 		$conversion_trigger_type = '';
 		$db_revenue_value        = 0.00;
 
@@ -1545,7 +1696,14 @@ class ElementTest_Ajax_Handler {
 
 		// Revenue hardening: derive the canonical revenue from the DB-stored
 		// goal value instead of trusting the client-supplied amount.
-		if ( 'custom_event' === $conversion_trigger_type ) {
+		$allow_client_custom_revenue = (bool) apply_filters(
+			'elementtest_allow_public_custom_event_revenue',
+			false,
+			$test_id,
+			$conversion_id
+		);
+
+		if ( 'custom_event' === $conversion_trigger_type && $allow_client_custom_revenue ) {
 			$max_revenue = (float) apply_filters( 'elementtest_max_revenue', 10000.00 );
 			$revenue     = min( max( 0, $client_revenue ), $max_revenue );
 		} else {
@@ -1952,8 +2110,10 @@ class ElementTest_Ajax_Handler {
 		$tests_table    = $wpdb->prefix . 'elementtest_tests';
 		$variants_table = $wpdb->prefix . 'elementtest_variants';
 
-		$test_id   = isset( $_POST['test_id'] ) ? absint( $_POST['test_id'] ) : 0;
-		$user_hash = ElementTest_Visitor::get_user_hash();
+		$test_id         = isset( $_POST['test_id'] ) ? absint( $_POST['test_id'] ) : 0;
+		$user_hash       = ElementTest_Visitor::get_user_hash();
+		$client_page_url = isset( $_POST['page_url'] ) ? esc_url_raw( substr( wp_unslash( $_POST['page_url'] ), 0, 500 ) ) : '';
+		$force_variant   = isset( $_POST['force_variant'] ) ? sanitize_text_field( wp_unslash( $_POST['force_variant'] ) ) : '';
 
 		// Validate required fields.
 		if ( ! $test_id || empty( $user_hash ) ) {
@@ -1973,33 +2133,48 @@ class ElementTest_Ajax_Handler {
 		}
 
 		// Verify the test is currently running.
-		$test_status = $wpdb->get_var(
+		$test = $wpdb->get_row(
 			$wpdb->prepare(
-				"SELECT status FROM {$tests_table} WHERE test_id = %d",
+				"SELECT status, page_url FROM {$tests_table} WHERE test_id = %d",
 				$test_id
-			)
+			),
+			ARRAY_A
 		);
 
-		if ( 'running' !== $test_status ) {
+		if ( empty( $test ) || 'running' !== $test['status'] ) {
 			$this->record_invalid_request();
 			wp_send_json_error(
 				array( 'message' => __( 'This test is not currently running.', 'elementtest-pro' ) )
 			);
 		}
 
-		// Check for existing assignment (sticky sessions).
-		$existing_variant_id = $wpdb->get_var(
-			$wpdb->prepare(
-				"SELECT variant_id FROM {$events_table}
-				WHERE test_id = %d
-				  AND user_hash = %s
-				  AND event_type = 'impression'
-				ORDER BY created_at ASC
-				LIMIT 1",
-				$test_id,
-				$user_hash
-			)
-		);
+		$test_page_url = isset( $test['page_url'] ) ? esc_url_raw( $test['page_url'] ) : '';
+		if ( ! $this->conversion_page_matches( $test_page_url, $client_page_url ) ) {
+			$this->record_invalid_request();
+			status_header( 400 );
+			wp_send_json_error(
+				array( 'message' => __( 'Variant assignment is not scoped to the test page.', 'elementtest-pro' ) )
+			);
+		}
+
+		$admin_forced_assignment = current_user_can( 'manage_options' ) && '' !== $force_variant;
+		$existing_variant_id     = null;
+
+		if ( ! $admin_forced_assignment ) {
+			// Check for existing assignment (sticky sessions).
+			$existing_variant_id = $wpdb->get_var(
+				$wpdb->prepare(
+					"SELECT variant_id FROM {$events_table}
+					WHERE test_id = %d
+					  AND user_hash = %s
+					  AND event_type = 'impression'
+					ORDER BY created_at ASC
+					LIMIT 1",
+					$test_id,
+					$user_hash
+				)
+			);
+		}
 
 		if ( $existing_variant_id ) {
 			// Verify the variant still exists (it may have been deleted).
@@ -2014,7 +2189,7 @@ class ElementTest_Ajax_Handler {
 			);
 
 			if ( $variant ) {
-				$variant['changes'] = json_decode( $variant['changes'], true );
+				$this->set_assignment_proof_cookie( $test_id, absint( $variant['variant_id'] ), $user_hash );
 
 				wp_send_json_success(
 					array(
@@ -2045,8 +2220,24 @@ class ElementTest_Ajax_Handler {
 			);
 		}
 
-		// Weighted random selection based on traffic_percentage.
-		$assigned_variant = $this->select_variant_by_weight( $variants );
+		$assigned_variant = null;
+		if ( $admin_forced_assignment ) {
+			foreach ( $variants as $candidate ) {
+				$is_control = ! empty( $candidate['is_control'] );
+				if (
+					( 'control' === $force_variant && $is_control )
+					|| ( (string) $candidate['variant_id'] === (string) absint( $force_variant ) )
+				) {
+					$assigned_variant = $candidate;
+					break;
+				}
+			}
+		}
+
+		if ( ! $assigned_variant ) {
+			// Weighted random selection based on traffic_percentage.
+			$assigned_variant = $this->select_variant_by_weight( $variants );
+		}
 
 		if ( ! $assigned_variant ) {
 			wp_send_json_error(
@@ -2054,10 +2245,9 @@ class ElementTest_Ajax_Handler {
 			);
 		}
 
-		$assigned_variant['changes'] = json_decode( $assigned_variant['changes'], true );
-
 		// Remove traffic_percentage from the response -- it is internal data.
 		unset( $assigned_variant['traffic_percentage'] );
+		$this->set_assignment_proof_cookie( $test_id, absint( $assigned_variant['variant_id'] ), $user_hash );
 
 		wp_send_json_success(
 			array(

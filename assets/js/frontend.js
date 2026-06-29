@@ -31,7 +31,7 @@ try {
 	// Constants & State
 	// =========================================================================
 
-	var VERSION = '2.5.5';
+	var VERSION = '2.5.6';
 	var OBSERVER_TIMEOUT = 8000; // Max time (ms) to wait for elements via MutationObserver.
 	var ANTIFLICKER_TIMEOUT = 3000; // Max time (ms) before forcing anti-flicker removal.
 
@@ -141,119 +141,64 @@ try {
 	// =========================================================================
 
 	/**
-	 * Select a variant from the test's variants array using weighted random.
+	 * Find the localized variant data for an assigned variant ID.
 	 *
-	 * If a cookie already exists for this test, return the matching variant.
-	 * Otherwise, perform weighted random selection based on traffic_percentage
-	 * and set the cookie for sticky sessions.
+	 * The server assignment endpoint returns the authoritative variant ID and
+	 * sets the HttpOnly proof cookie. The localized payload remains the source
+	 * for variant changes so full-page caches do not need per-visitor HTML.
 	 *
-	 * @param {Object} test Test configuration with variants array.
-	 * @return {Object|null} The selected variant object, or null if none available.
+	 * @param {Object} test      Test configuration.
+	 * @param {number} variantId Variant ID from the server assignment.
+	 * @return {Object|null} Matching localized variant, or null.
 	 */
-	function assignVariant( test ) {
-		var testId = test.test_id;
-		var variants = test.variants;
-		var cookieName = 'elementtest_variant_' + testId;
-		var cookieDays = parseInt( elementtestFrontend.cookieDays, 10 ) || 30;
-
-		if ( ! variants || variants.length === 0 ) {
-			return null;
+	function findVariantById( test, variantId ) {
+		var variants = test.variants || [];
+		for ( var i = 0; i < variants.length; i++ ) {
+			if ( String( variants[ i ].variant_id ) === String( variantId ) ) {
+				return variants[ i ];
+			}
 		}
+		return null;
+	}
 
-		// -----------------------------------------------------------------
-		// Admin override: ?et_force=control or ?et_force=<variant_id>
-		//
-		// Lets logged-in admins (manage_options) deterministically preview
-		// any variant without waiting on random rolls or repeatedly clearing
-		// cookies. The forced assignment is written to the cookie so it
-		// sticks across navigation; remove the cookie to resume normal
-		// random assignment. Ignored for non-admin visitors so it cannot be
-		// used to bias real test data via shared URLs.
-		// -----------------------------------------------------------------
+	/**
+	 * Request a server-authoritative assignment and proof cookie.
+	 *
+	 * Public tracking writes require the HttpOnly proof cookie set by
+	 * elementtest_get_variant_assignment, so direct POSTs with only the public
+	 * nonce and IDs cannot create impressions or conversions.
+	 *
+	 * @param {Object}   test     Test configuration.
+	 * @param {Function} callback Called with a localized variant or null.
+	 */
+	function requestVariantAssignment( test, callback ) {
+		var data = {
+			action: 'elementtest_get_variant_assignment',
+			nonce: elementtestFrontend.nonce,
+			test_id: test.test_id,
+			user_hash: elementtestFrontend.userHash,
+			page_url: window.location.href
+		};
+
 		if ( elementtestFrontend.isAdmin ) {
 			var forced = getQueryParam( 'et_force' );
-
 			if ( forced ) {
-				var forcedMatch = null;
-
-				if ( 'control' === forced ) {
-					for ( var f = 0; f < variants.length; f++ ) {
-						if ( parseInt( variants[ f ].is_control, 10 ) === 1 ) {
-							forcedMatch = variants[ f ];
-							break;
-						}
-					}
-				} else {
-					for ( var g = 0; g < variants.length; g++ ) {
-						if ( String( variants[ g ].variant_id ) === String( forced ) ) {
-							forcedMatch = variants[ g ];
-							break;
-						}
-					}
-				}
-
-				if ( forcedMatch ) {
-					setCookie( cookieName, forcedMatch.variant_id, cookieDays );
-					if ( typeof console !== 'undefined' && console.info ) {
-						console.info(
-							'[ElementTest] Test ' + testId + ' forced to "' +
-							forcedMatch.name + '" (variant_id ' + forcedMatch.variant_id +
-							') via ?et_force=' + forced
-						);
-					}
-					return forcedMatch;
-				}
-
-				if ( typeof console !== 'undefined' && console.warn ) {
-					console.warn(
-						'[ElementTest] Test ' + testId + ' has no variant matching ?et_force=' +
-						forced + '; falling back to normal assignment.'
-					);
-				}
+				data.force_variant = forced;
 			}
 		}
 
-		// Check for existing cookie (sticky session).
-		var existingCookie = getCookie( cookieName );
+		sendAjaxRequest( data, function( response ) {
+			var assigned = response && response.success && response.data ? response.data.variant : null;
+			var variant = assigned ? findVariantById( test, assigned.variant_id ) : null;
 
-		if ( existingCookie !== null ) {
-			// Find the variant matching the cookie.
-			for ( var i = 0; i < variants.length; i++ ) {
-				if ( String( variants[ i ].variant_id ) === String( existingCookie ) ) {
-					return variants[ i ];
-				}
+			if ( ! variant ) {
+				callback( null );
+				return;
 			}
-			// Cookie references a variant that no longer exists; reassign.
-		}
 
-		// Weighted random selection.
-		var totalWeight = 0;
-		for ( var j = 0; j < variants.length; j++ ) {
-			totalWeight += parseInt( variants[ j ].traffic_percentage, 10 ) || 0;
-		}
-
-		if ( totalWeight <= 0 ) {
-			// Fallback: pick first variant.
-			var fallback = variants[ 0 ];
-			setCookie( cookieName, fallback.variant_id, cookieDays );
-			return fallback;
-		}
-
-		var random = Math.floor( Math.random() * totalWeight ) + 1;
-		var cumulative = 0;
-
-		for ( var k = 0; k < variants.length; k++ ) {
-			cumulative += parseInt( variants[ k ].traffic_percentage, 10 ) || 0;
-			if ( random <= cumulative ) {
-				setCookie( cookieName, variants[ k ].variant_id, cookieDays );
-				return variants[ k ];
-			}
-		}
-
-		// Fallback.
-		var last = variants[ variants.length - 1 ];
-		setCookie( cookieName, last.variant_id, cookieDays );
-		return last;
+			setCookie( 'elementtest_variant_' + test.test_id, variant.variant_id, parseInt( elementtestFrontend.cookieDays, 10 ) || 30 );
+			callback( variant );
+		});
 	}
 
 	// =========================================================================
@@ -614,6 +559,40 @@ try {
 			// Never let gtag errors break the conversion flow. The plugin
 			// DB write already happened via sendTrackingRequest above.
 		}
+	}
+
+	/**
+	 * Send an AJAX request that needs to inspect the JSON response.
+	 *
+	 * @param {Object}   data     Key-value pairs to send as POST data.
+	 * @param {Function} callback Called with parsed JSON, or null on failure.
+	 */
+	function sendAjaxRequest( data, callback ) {
+		var xhr = new XMLHttpRequest();
+		xhr.open( 'POST', elementtestFrontend.ajaxUrl, true );
+		xhr.setRequestHeader( 'Content-Type', 'application/x-www-form-urlencoded' );
+
+		xhr.onreadystatechange = function() {
+			if ( xhr.readyState !== 4 ) {
+				return;
+			}
+
+			try {
+				callback( JSON.parse( xhr.responseText ) );
+			} catch ( e ) {
+				callback( null );
+			}
+		};
+
+		var params = [];
+		for ( var key in data ) {
+			if ( data.hasOwnProperty( key ) ) {
+				params.push(
+					encodeURIComponent( key ) + '=' + encodeURIComponent( data[ key ] )
+				);
+			}
+		}
+		xhr.send( params.join( '&' ) );
 	}
 
 	/**
@@ -1564,16 +1543,26 @@ try {
 	 * @param {Object} test Test configuration object from elementtestFrontend.tests.
 	 */
 	function processTest( test ) {
+		requestVariantAssignment( test, function( variant ) {
+			if ( ! variant ) {
+				// No verified assignment; skip this test rather than emit
+				// untrusted tracking writes that the server will reject.
+				removeAntiFlicker();
+				return;
+			}
+
+			processAssignedTest( test, variant );
+		});
+	}
+
+	/**
+	 * Apply and track a test after the server has issued assignment proof.
+	 *
+	 * @param {Object} test    Test configuration object from elementtestFrontend.tests.
+	 * @param {Object} variant Server-assigned localized variant object.
+	 */
+	function processAssignedTest( test, variant ) {
 		var testId = test.test_id;
-
-		// Assign a variant (from cookie or weighted random).
-		var variant = assignVariant( test );
-
-		if ( ! variant ) {
-			// No variants configured; skip this test.
-			removeAntiFlicker();
-			return;
-		}
 
 		var variantId = variant.variant_id;
 		var isControl = parseInt( variant.is_control, 10 ) === 1;
