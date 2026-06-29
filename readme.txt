@@ -3,7 +3,7 @@ Contributors: Doug Wagner
 Tags: ab-testing, split-testing, conversion, optimization, analytics
 Requires at least: 5.6
 Tested up to: 6.7
-Stable tag: 2.5.4
+Stable tag: 2.5.5
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -62,6 +62,10 @@ Yes, ElementTest Pro is designed to work with popular page builders like Element
 All testing data is stored in your WordPress database. No external services are used.
 
 == Changelog ==
+
+= 2.5.5 =
+* Fix: Cross-page pageview goals on subdirectory WordPress installs (PR #55). When WordPress lives in a subdirectory (e.g. `example.com/blog/`), the server correctly detected pageview conversion goals on thank-you or order-received pages, but the client-side URL re-check added in 2.5.2 did not strip the install's home path before comparing paths. Visitors reached the goal page and the plugin loaded, yet conversions were silently dropped because `/blog/thank-you` did not match a trigger stored as `/thank-you`. Fix: pass the WordPress home path to the frontend and strip it inside the pageview path normalizer, mirroring the PHP path logic already used for test delivery and goal detection. Path-boundary rules and exact query-string matching from 2.5.2 are unchanged.
+* Internal: JS `VERSION` constant in `assets/js/frontend.js` synced to 2.5.5 to match the plugin version (per the 2.3.9 sync convention).
 
 = 2.5.4 =
 * Fix: Visitor IP spoofing via forwarded headers (PR #53). When a reverse-proxy preset was enabled, the plugin trusted `X-Forwarded-For`, `X-Real-IP`, `CF-Connecting-IP`, or a custom header without verifying the request actually arrived through the proxy. An attacker POSTing directly to the tracking AJAX endpoint could set the header to any IP, bypassing rate limits and deduplication and forging analytics data. Forwarded headers are now honored only when the direct connection IP falls inside a trusted proxy range; otherwise the plugin uses the direct IP. Cloudflare and nginx presets include default ranges; custom setups must declare their proxy's egress CIDR via the `elementtest_trusted_proxy_cidrs` filter or forwarded headers are ignored (secure default). Default `proxy_type=none` is unchanged.

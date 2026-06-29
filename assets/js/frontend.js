@@ -31,7 +31,7 @@ try {
 	// Constants & State
 	// =========================================================================
 
-	var VERSION = '2.5.4';
+	var VERSION = '2.5.5';
 	var OBSERVER_TIMEOUT = 8000; // Max time (ms) to wait for elements via MutationObserver.
 	var ANTIFLICKER_TIMEOUT = 3000; // Max time (ms) before forcing anti-flicker removal.
 
@@ -676,6 +676,18 @@ try {
 		} catch ( e ) {}
 
 		path = path.toLowerCase().replace( /\/+$/, '' );
+
+		var homePath = elementtestFrontend.homePath || '';
+		homePath = String( homePath ).toLowerCase().replace( /\/+$/, '' );
+		if ( homePath && homePath.charAt( 0 ) !== '/' ) {
+			homePath = '/' + homePath;
+		}
+		if ( homePath === '/' ) {
+			homePath = '';
+		}
+		if ( homePath && ( path === homePath || path.indexOf( homePath + '/' ) === 0 ) ) {
+			path = path.substring( homePath.length ) || '/';
+		}
 
 		if ( ! path ) {
 			path = '/';

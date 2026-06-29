@@ -399,12 +399,15 @@ class ElementTest_Frontend {
 
 		$tests_data = $this->build_tests_data();
 		$settings   = get_option( 'elementtest_settings', array() );
+		$home_path  = wp_parse_url( home_url(), PHP_URL_PATH );
+		$home_path  = $home_path ? untrailingslashit( $home_path ) : '';
 
 		$localize_data = array(
 			'ajaxUrl'    => admin_url( 'admin-ajax.php' ),
 			'nonce'      => wp_create_nonce( 'elementtest-public' ),
 			'tests'      => $tests_data,
 			'cookieDays' => isset( $settings['cookie_days'] ) ? absint( $settings['cookie_days'] ) : 30,
+			'homePath'   => $home_path,
 			'userHash'   => $this->get_user_hash(),
 			// Gate the ?et_force= query-param override so non-admin visitors
 			// cannot bias real test data by sharing forced URLs. See

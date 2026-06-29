@@ -2,6 +2,12 @@
 
 `readme.txt` remains the canonical WordPress.org release history for this plugin. This file mirrors the shipped release notes in a GitHub-friendly format.
 
+## 2.5.5
+
+> Correctness fix for cross-page pageview goals on subdirectory WordPress installs (PR #55), merged to `main` after 2.5.4. Reinforces the PR #50 client/server matcher alignment — PHP already stripped the install home path; JS did not after the cached-safe re-check landed. JS `VERSION` constant in `assets/js/frontend.js` synced to 2.5.5 (per the 2.3.9 sync convention).
+
+- Fix: **Subdirectory pageview goal matching on the client.** When WordPress is installed in a subdirectory (e.g. `https://example.com/blog/`), `ElementTest_Frontend::get_current_path()` and `normalise_path()` already strip the home path before comparing test URLs and pageview goal triggers. After 2.5.2 (PR #50), cross-page conversion-only pageview goals are re-validated in the browser via `setupPageviewGoal()` → `normalizePageviewPath()` before `trackConversion()` runs — but that JS helper lowercased and trimmed trailing slashes only; it did **not** strip `homePath`. Symptom: the PHP pre-filter matched (`detect_pageview_goal_tests()` baked the goal into `conversionOnlyTests` and enqueued the frontend script on `/blog/thank-you`), then the client re-check failed (`/blog/thank-you` ≠ trigger `/thank-you`) and the conversion was silently dropped. Fix: localize `homePath` from `wp_parse_url( home_url(), PHP_URL_PATH )` in `enqueue_frontend_assets()` and strip it inside `normalizePageviewPath()` with the same path-boundary guard PHP uses (`/blog` must not match `/blogging/...`). Query/hash triggers still require an exact live URL match; wildcard path-boundary rules from 2.4.1 / 2.5.2 unchanged. Files: `includes/class-frontend.php`, `assets/js/frontend.js`. Standalone regression checks in `tests/test-pageview-path-normalization.js` (6 cases). (PR #55)
+
 ## 2.5.4
 
 > Security fix for visitor IP spoofing (PR #53, closes #52), merged to `main` after 2.5.3. See `DECISIONS.md` (2026-06-03 "Forwarded headers require trusted-proxy source") for rationale. JS `VERSION` constant in `assets/js/frontend.js` synced to 2.5.4 (per the 2.3.9 sync convention).
