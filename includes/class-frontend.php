@@ -128,13 +128,11 @@ class ElementTest_Frontend {
 
 		global $wpdb;
 
-		$tests_table = $wpdb->prefix . 'elementtest_tests';
-
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
 		$running_tests = $wpdb->get_results(
 			$wpdb->prepare(
 				// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- table name from $wpdb->prefix.
-				"SELECT * FROM {$tests_table} WHERE status = %s",
+				"SELECT * FROM {$wpdb->prefix}elementtest_tests WHERE status = %s",
 				'running'
 			)
 		);
@@ -193,9 +191,7 @@ class ElementTest_Frontend {
 			$active_test_ids[] = absint( $t->test_id );
 		}
 
-		$conversions_table = $wpdb->prefix . 'elementtest_conversions';
-		$variants_table    = $wpdb->prefix . 'elementtest_variants';
-		$current_url       = ( is_ssl() ? 'https' : 'http' ) . '://'
+		$current_url = ( is_ssl() ? 'https' : 'http' ) . '://'
 			. ( isset( $_SERVER['HTTP_HOST'] ) ? sanitize_text_field( wp_unslash( $_SERVER['HTTP_HOST'] ) ) : '' )
 			. ( isset( $_SERVER['REQUEST_URI'] ) ? sanitize_text_field( wp_unslash( $_SERVER['REQUEST_URI'] ) ) : '/' );
 		$current_request_uri = isset( $_SERVER['REQUEST_URI'] )
@@ -214,7 +210,7 @@ class ElementTest_Frontend {
 				$wpdb->prepare(
 					// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 					"SELECT conversion_id, trigger_event, revenue_value
-					 FROM {$conversions_table}
+					 FROM {$wpdb->prefix}elementtest_conversions
 					 WHERE test_id = %d AND trigger_type = 'pageview'",
 					$tid
 				)
@@ -270,7 +266,7 @@ class ElementTest_Frontend {
 				$variant_rows = $wpdb->get_results(
 					$wpdb->prepare(
 						// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
-						"SELECT variant_id, name FROM {$variants_table} WHERE test_id = %d ORDER BY variant_id ASC",
+						"SELECT variant_id, name FROM {$wpdb->prefix}elementtest_variants WHERE test_id = %d ORDER BY variant_id ASC",
 						$tid
 					)
 				);
@@ -451,9 +447,6 @@ class ElementTest_Frontend {
 	private function build_tests_data() {
 		global $wpdb;
 
-		$variants_table    = $wpdb->prefix . 'elementtest_variants';
-		$conversions_table = $wpdb->prefix . 'elementtest_conversions';
-
 		$tests_data = array();
 
 		foreach ( $this->active_tests as $test ) {
@@ -465,7 +458,7 @@ class ElementTest_Frontend {
 				$wpdb->prepare(
 					// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 					"SELECT variant_id, test_id, name, changes, traffic_percentage, is_control
-					 FROM {$variants_table}
+					 FROM {$wpdb->prefix}elementtest_variants
 					 WHERE test_id = %d
 					 ORDER BY is_control DESC, variant_id ASC",
 					$test_id
@@ -495,7 +488,7 @@ class ElementTest_Frontend {
 				$wpdb->prepare(
 					// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 					"SELECT conversion_id, trigger_type, trigger_selector, trigger_event, revenue_value
-					 FROM {$conversions_table}
+					 FROM {$wpdb->prefix}elementtest_conversions
 					 WHERE test_id = %d
 					 ORDER BY conversion_id ASC",
 					$test_id

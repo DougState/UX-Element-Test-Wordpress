@@ -2,8 +2,8 @@
 Contributors: Doug Wagner
 Tags: ab-testing, split-testing, conversion, optimization, analytics
 Requires at least: 5.6
-Tested up to: 6.7
-Stable tag: 2.5.8
+Tested up to: 7.0
+Stable tag: 2.5.9
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -62,6 +62,15 @@ Yes, ElementTest Pro is designed to work with popular page builders like Element
 All testing data is stored in your WordPress database. No external services are used.
 
 == Changelog ==
+
+= 2.5.9 =
+* Compliance: The plugin now passes the WordPress.org Plugin Check with zero errors (PR #64).
+* Compliance: Chart.js is now bundled with the plugin (`assets/vendor/chart.umd.min.js`) and inlined into exported HTML reports instead of being loaded from the jsdelivr CDN, per WordPress.org plugin directory policy (PR #64).
+* Compliance: Dev-only CLI test scripts and shell scripts are no longer shipped in the distributed plugin (PR #64).
+* Compliance: Database table names are now written inline as `{$wpdb->prefix}elementtest_*` in all SQL, and the remaining direct-query and placeholder-list warnings carry documented phpcs justifications (custom plugin tables have no WP API equivalent) (PR #64).
+* Compliance: Added the missing translators comment for the "%s%% overall rate" string on the results dashboard, created the `languages/` folder declared by the `Domain Path` header, and corrected the readme `Stable tag` (PR #64).
+* Compatibility: Tested up to WordPress 7.0 (PR #64).
+* Internal: JS `VERSION` constant in `assets/js/frontend.js` synced to 2.5.9 to match the plugin version (per the 2.3.9 sync convention).
 
 = 2.5.8 =
 * Security: `proxy_page()` now uses `preg_replace_callback` instead of `preg_replace` when injecting the `<base>` tag, preventing a same-origin URL containing `$1` from being misinterpreted as a regex backreference and corrupting proxied HTML output (PR #62, release PR #63).

@@ -3,9 +3,9 @@
  * Plugin Name: ElementTest Pro
  * Plugin URI: https://github.com/DougState/elementtest-pro
  * Description: A/B test various elements (CSS, copy, JS, images) of your pages and track conversion data to measure performance.
- * Version: 2.5.8
+ * Version: 2.5.9
  * Requires at least: 5.6
- * Tested up to: 6.7
+ * Tested up to: 7.0
  * Requires PHP: 7.4
  * Author: Elimstat Dev Ops
  * Author URI: https://elimstat.com
@@ -23,7 +23,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 // Define plugin constants
-define( 'ELEMENTTEST_VERSION', '2.5.8' );
+define( 'ELEMENTTEST_VERSION', '2.5.9' );
 define( 'ELEMENTTEST_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'ELEMENTTEST_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
 define( 'ELEMENTTEST_PLUGIN_BASENAME', plugin_basename( __FILE__ ) );
@@ -473,10 +473,6 @@ class ElementTest_Pro {
             return;
         }
 
-        $tests_table    = $wpdb->prefix . 'elementtest_tests';
-        $variants_table = $wpdb->prefix . 'elementtest_variants';
-        $events_table   = $wpdb->prefix . 'elementtest_events';
-
         // Current status filter.
         // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- read-only filter, no state change.
         $current_status = isset( $_GET['status'] ) ? sanitize_key( $_GET['status'] ) : 'all';
@@ -489,35 +485,34 @@ class ElementTest_Pro {
         }
 
         // Query tests with aggregated variant counts and event stats.
-        // phpcs:disable WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- table names are constructed from $wpdb->prefix.
+        // phpcs:disable WordPress.DB.PreparedSQL.InterpolatedNotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- $where is empty or built via $wpdb->prepare(); custom plugin tables with no WP API equivalent; admin list screen read.
         $tests = $wpdb->get_results(
             "SELECT t.*,
                 COALESCE( v.variant_count, 0 ) AS variant_count,
                 COALESCE( e.impressions, 0 )   AS impressions,
                 COALESCE( e.conversions, 0 )   AS conversions
-            FROM {$tests_table} AS t
+            FROM {$wpdb->prefix}elementtest_tests AS t
             LEFT JOIN (
                 SELECT test_id,
                     COUNT(*) AS variant_count
-                FROM {$variants_table}
+                FROM {$wpdb->prefix}elementtest_variants
                 GROUP BY test_id
             ) AS v ON t.test_id = v.test_id
             LEFT JOIN (
                 SELECT test_id,
                     SUM( CASE WHEN event_type = 'impression' THEN 1 ELSE 0 END ) AS impressions,
                     SUM( CASE WHEN event_type = 'conversion' THEN 1 ELSE 0 END ) AS conversions
-                FROM {$events_table}
+                FROM {$wpdb->prefix}elementtest_events
                 GROUP BY test_id
             ) AS e ON t.test_id = e.test_id
             {$where}
             ORDER BY t.created_at DESC"
         );
-        // phpcs:enable WordPress.DB.PreparedSQL.InterpolatedNotPrepared
-
         // Build status counts for the filter tabs.
         $count_rows = $wpdb->get_results(
-            "SELECT status, COUNT(*) AS cnt FROM {$tests_table} GROUP BY status"
+            "SELECT status, COUNT(*) AS cnt FROM {$wpdb->prefix}elementtest_tests GROUP BY status"
         );
+        // phpcs:enable WordPress.DB.PreparedSQL.InterpolatedNotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
 
         $counts = array(
             'all'       => 0,
@@ -569,19 +564,16 @@ class ElementTest_Pro {
         if ( $test_id ) {
             global $wpdb;
 
-            $tests_table       = $wpdb->prefix . 'elementtest_tests';
-            $variants_table    = $wpdb->prefix . 'elementtest_variants';
-            $conversions_table = $wpdb->prefix . 'elementtest_conversions';
-
+            // phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Edit-screen reads on the plugin's own custom tables; no WP API equivalent.
             $test = $wpdb->get_row(
-                $wpdb->prepare( "SELECT * FROM {$tests_table} WHERE test_id = %d", $test_id ),
+                $wpdb->prepare( "SELECT * FROM {$wpdb->prefix}elementtest_tests WHERE test_id = %d", $test_id ),
                 ARRAY_A
             );
 
             if ( $test ) {
                 $variants = $wpdb->get_results(
                     $wpdb->prepare(
-                        "SELECT * FROM {$variants_table} WHERE test_id = %d ORDER BY is_control DESC, variant_id ASC",
+                        "SELECT * FROM {$wpdb->prefix}elementtest_variants WHERE test_id = %d ORDER BY is_control DESC, variant_id ASC",
                         $test_id
                     ),
                     ARRAY_A
@@ -589,11 +581,12 @@ class ElementTest_Pro {
 
                 $goals = $wpdb->get_results(
                     $wpdb->prepare(
-                        "SELECT * FROM {$conversions_table} WHERE test_id = %d ORDER BY conversion_id ASC",
+                        "SELECT * FROM {$wpdb->prefix}elementtest_conversions WHERE test_id = %d ORDER BY conversion_id ASC",
                         $test_id
                     ),
                     ARRAY_A
                 );
+                // phpcs:enable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
 
                 $test_data = array(
                     'test'     => $test,
@@ -620,14 +613,11 @@ class ElementTest_Pro {
         // phpcs:ignore WordPress.Security.NonceVerification.Recommended
         $test_id = isset( $_GET['test_id'] ) ? absint( $_GET['test_id'] ) : 0;
 
-        $tests_table       = $wpdb->prefix . 'elementtest_tests';
-        $variants_table    = $wpdb->prefix . 'elementtest_variants';
-        $events_table      = $wpdb->prefix . 'elementtest_events';
-        $conversions_table = $wpdb->prefix . 'elementtest_conversions';
+        // phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Results-dashboard reads on the plugin's own custom tables; no WP API equivalent.
 
         // Get the test.
         $test = $wpdb->get_row(
-            $wpdb->prepare( "SELECT * FROM {$tests_table} WHERE test_id = %d", $test_id )
+            $wpdb->prepare( "SELECT * FROM {$wpdb->prefix}elementtest_tests WHERE test_id = %d", $test_id )
         );
 
         // Get variants with aggregated stats.
@@ -636,8 +626,8 @@ class ElementTest_Pro {
                 "SELECT v.*,
                     COALESCE( SUM( CASE WHEN e.event_type = 'impression' THEN 1 ELSE 0 END ), 0 ) AS impressions,
                     COALESCE( SUM( CASE WHEN e.event_type = 'conversion' THEN 1 ELSE 0 END ), 0 ) AS conversions
-                FROM {$variants_table} v
-                LEFT JOIN {$events_table} e ON v.variant_id = e.variant_id AND e.test_id = v.test_id
+                FROM {$wpdb->prefix}elementtest_variants v
+                LEFT JOIN {$wpdb->prefix}elementtest_events e ON v.variant_id = e.variant_id AND e.test_id = v.test_id
                 WHERE v.test_id = %d
                 GROUP BY v.variant_id
                 ORDER BY v.is_control DESC, v.variant_id ASC",
@@ -650,7 +640,7 @@ class ElementTest_Pro {
             $goal_rows = $wpdb->get_results(
                 $wpdb->prepare(
                     "SELECT conversion_id, COUNT(*) AS cnt
-                     FROM {$events_table}
+                     FROM {$wpdb->prefix}elementtest_events
                      WHERE variant_id = %d AND test_id = %d AND event_type = 'conversion' AND conversion_id IS NOT NULL
                      GROUP BY conversion_id",
                     absint( $v->variant_id ),
@@ -666,7 +656,7 @@ class ElementTest_Pro {
         // Get conversion goals.
         $goals = $wpdb->get_results(
             $wpdb->prepare(
-                "SELECT * FROM {$conversions_table} WHERE test_id = %d ORDER BY conversion_id ASC",
+                "SELECT * FROM {$wpdb->prefix}elementtest_conversions WHERE test_id = %d ORDER BY conversion_id ASC",
                 $test_id
             )
         );
@@ -675,14 +665,16 @@ class ElementTest_Pro {
         $daily_rows = $wpdb->get_results(
             $wpdb->prepare(
                 "SELECT DATE(e.created_at) AS event_date, v.name AS variant_name, e.event_type, COUNT(*) AS cnt
-                 FROM {$events_table} e
-                 JOIN {$variants_table} v ON e.variant_id = v.variant_id
+                 FROM {$wpdb->prefix}elementtest_events e
+                 JOIN {$wpdb->prefix}elementtest_variants v ON e.variant_id = v.variant_id
                  WHERE e.test_id = %d
                  GROUP BY event_date, v.name, e.event_type
                  ORDER BY event_date ASC",
                 $test_id
             )
         );
+
+        // phpcs:enable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
 
         $daily_data = array();
         foreach ( $daily_rows as $row ) {

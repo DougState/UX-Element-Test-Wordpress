@@ -2,6 +2,16 @@
 
 `readme.txt` remains the canonical WordPress.org release history for this plugin. This file mirrors the shipped release notes in a GitHub-friendly format.
 
+## 2.5.9
+
+> WordPress.org Plugin Check compliance work (PR #64) that takes the plugin to **zero Plugin Check errors** (verified with Plugin Check 1.6.0 against the distribution tree; report saved under `reports/wp-plugin-check/`). These changes were documented under 2.5.8 on `main` but did not ship in the released 2.5.8 zip, so they are released here as 2.5.9. JS `VERSION` constant in `assets/js/frontend.js` synced to 2.5.9 (per the 2.3.9 sync convention).
+
+- Compliance: **Chart.js bundled locally.** Exported HTML reports previously loaded Chart.js from the jsdelivr CDN; WordPress.org policy forbids offloading executable code to third-party services. The library (v4.5.1) now ships at `assets/vendor/chart.umd.min.js` and is inlined into the exported report so it remains self-contained and works offline (~200 KB larger per export). The `typeof Chart === 'undefined'` graceful-degradation path is unchanged. Files: `includes/views/report-html.php`. (PR #64)
+- Compliance: **Dev-only artifacts removed from distribution.** `tests/` (standalone CLI test scripts, flagged for missing ABSPATH guards and unescaped CLI output) and `scripts/` (shell scripts, flagged as `application_detected`) are excluded from plugin zips, deploy builds, and the sanitized public mirrors; they remain in the private repo. Files: `.cursor/rules/zip-elementtest.mdc`, `.cursor/commands/deploy-elementtest-*.md`, `scripts/push-sanitized-public.sh`. (PR #64)
+- Compliance: **Table names inlined for the Plugin Check SQL sniff.** The `PluginCheck.Security.DirectDB.UnescapedDBParameter` sniff cannot trace `$table = $wpdb->prefix . 'literal'` variable assignments, so ~60 query sites now interpolate `{$wpdb->prefix}elementtest_*` directly in the SQL (values were already parameterized via `$wpdb->prepare()`; no behavior change). Now-unused table variables were removed. Remaining `DirectQuery`/`NoCaching` and `%d`-only placeholder-list warnings carry documented phpcs justifications — the plugin's custom tables have no WP API equivalent. Files: `includes/class-ajax-handler.php`, `includes/class-report-generator.php`, `includes/class-frontend.php`, `includes/class-cli-commands.php`, `elementtest-pro.php`. (PR #64)
+- Compliance: **i18n and packaging fixes.** Added the missing `/* translators: ... */` comment for the `%s%% overall rate` string in `includes/views/test-results.php`, created the `languages/` folder declared by the `Domain Path` plugin header, corrected the readme `Stable tag`, and annotated the in-memory `php://temp` stream in the CSV exporter (not a filesystem operation, so `WP_Filesystem` does not apply). (PR #64)
+- Compatibility: **Tested up to WordPress 7.0** in the plugin header and readme. (PR #64)
+
 ## 2.5.8
 
 > Security fixes for two remaining Low findings from the 2026-04-06 `class-ajax-handler.php` review (PR #62), released as 2.5.8 (PR #63), merged to `main` after 2.5.7. JS `VERSION` constant in `assets/js/frontend.js` synced to 2.5.8 (per the 2.3.9 sync convention).

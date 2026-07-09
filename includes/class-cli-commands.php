@@ -248,7 +248,6 @@ class ElementTest_CLI_Commands {
             WP_CLI::error( 'Invalid --type. Use all, css, or js.' );
         }
 
-        $tests_table    = $wpdb->prefix . 'elementtest_tests';
         $variants_table = $wpdb->prefix . 'elementtest_variants';
 
         // Build the WHERE clause. test_type lives on the parent test row.
@@ -268,11 +267,11 @@ class ElementTest_CLI_Commands {
         }
 
         $where_sql = implode( ' AND ', $where );
-        // phpcs:disable WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQLPlaceholders.UnsupportedPlaceholder
+        // phpcs:disable WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQLPlaceholders.UnsupportedPlaceholder, PluginCheck.Security.DirectDB.UnescapedDBParameter -- WHERE clause is built from literal fragments with %s/%d placeholders only (no user input is interpolated); custom plugin tables.
         $sql = "SELECT v.variant_id, v.test_id, v.name AS variant_name, v.changes,
                        t.name AS test_name, t.test_type
-                FROM {$variants_table} v
-                INNER JOIN {$tests_table} t ON v.test_id = t.test_id
+                FROM {$wpdb->prefix}elementtest_variants v
+                INNER JOIN {$wpdb->prefix}elementtest_tests t ON v.test_id = t.test_id
                 WHERE {$where_sql}
                 ORDER BY v.test_id ASC, v.variant_id ASC";
 

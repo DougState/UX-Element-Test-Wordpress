@@ -3,7 +3,8 @@
  * Template: Standalone HTML Report
  *
  * Renders a self-contained HTML document for a single A/B test report.
- * All styles are inlined. Charts rendered by Chart.js (CDN).
+ * All styles are inlined. Charts rendered by Chart.js, inlined from the
+ * bundled copy at assets/vendor/chart.umd.min.js (no CDN dependency).
  *
  * Expected variable:
  *   $report  array  Structured report data from ElementTest_Report_Generator::get_report_data().
@@ -301,7 +302,19 @@ $version  = defined( 'ELEMENTTEST_VERSION' ) ? ELEMENTTEST_VERSION : '2.3.0';
 </div>
 
 <?php if ( ! empty( $daily ) ) : ?>
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
+<script>
+<?php
+// Inline the bundled Chart.js library so the exported report is fully
+// self-contained (works offline, no third-party CDN — a WordPress.org
+// plugin-directory requirement). Raw JS must not be HTML-escaped; the
+// bundle ships with the plugin and contains no </script sequences.
+$chartjs_path = ELEMENTTEST_PLUGIN_DIR . 'assets/vendor/chart.umd.min.js';
+if ( is_readable( $chartjs_path ) ) {
+    // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped, WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- Static bundled JS library read from the plugin's own directory and inlined verbatim inside a <script> element; escaping would corrupt it.
+    echo file_get_contents( $chartjs_path );
+}
+?>
+</script>
 <script>
 (function() {
     if (typeof Chart === 'undefined') {

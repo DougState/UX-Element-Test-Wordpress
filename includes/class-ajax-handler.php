@@ -14,6 +14,8 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
+// phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- This handler is the CRUD/tracking layer for the plugin's own custom tables (wp_elementtest_*), which have no WP API equivalent. Reads are request-scoped (admin screens or per-visitor tracking) where persistent object caching would serve stale A/B data.
+
 /**
  * Class ElementTest_Ajax_Handler
  *
@@ -480,7 +482,7 @@ class ElementTest_Ajax_Handler {
 			// Update existing test.
 			$exists = $wpdb->get_var(
 				$wpdb->prepare(
-					"SELECT test_id FROM {$table} WHERE test_id = %d",
+					"SELECT test_id FROM {$wpdb->prefix}elementtest_tests WHERE test_id = %d",
 					$test_id
 				)
 			);
@@ -575,8 +577,8 @@ class ElementTest_Ajax_Handler {
 				$placeholders = implode( ',', array_fill( 0, count( $ids_safe ), '%d' ) );
 				$wpdb->query(
 					$wpdb->prepare(
-						// phpcs:ignore WordPress.DB.PreparedSQLPlaceholders.UnfinishedPrepare -- dynamic placeholder count.
-						"DELETE FROM {$variants_table} WHERE test_id = %d AND variant_id NOT IN ({$placeholders})",
+						// phpcs:ignore WordPress.DB.PreparedSQLPlaceholders.UnfinishedPrepare, WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- $placeholders is a %d-only list sized to the value count.
+						"DELETE FROM {$wpdb->prefix}elementtest_variants WHERE test_id = %d AND variant_id NOT IN ({$placeholders})",
 						array_merge( array( $test_id ), $ids_safe )
 					)
 				);
@@ -657,8 +659,8 @@ class ElementTest_Ajax_Handler {
 				$placeholders = implode( ',', array_fill( 0, count( $ids_safe ), '%d' ) );
 				$wpdb->query(
 					$wpdb->prepare(
-						// phpcs:ignore WordPress.DB.PreparedSQLPlaceholders.UnfinishedPrepare -- dynamic placeholder count.
-						"DELETE FROM {$conversions_table} WHERE test_id = %d AND conversion_id NOT IN ({$placeholders})",
+						// phpcs:ignore WordPress.DB.PreparedSQLPlaceholders.UnfinishedPrepare, WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- $placeholders is a %d-only list sized to the value count.
+						"DELETE FROM {$wpdb->prefix}elementtest_conversions WHERE test_id = %d AND conversion_id NOT IN ({$placeholders})",
 						array_merge( array( $test_id ), $ids_safe )
 					)
 				);
@@ -668,7 +670,7 @@ class ElementTest_Ajax_Handler {
 		// Return the saved test.
 		$test = $wpdb->get_row(
 			$wpdb->prepare(
-				"SELECT * FROM {$table} WHERE test_id = %d",
+				"SELECT * FROM {$wpdb->prefix}elementtest_tests WHERE test_id = %d",
 				$test_id
 			),
 			ARRAY_A
@@ -704,13 +706,9 @@ class ElementTest_Ajax_Handler {
 			);
 		}
 
-		$tests_table       = $wpdb->prefix . 'elementtest_tests';
-		$variants_table    = $wpdb->prefix . 'elementtest_variants';
-		$conversions_table = $wpdb->prefix . 'elementtest_conversions';
-
 		$test = $wpdb->get_row(
 			$wpdb->prepare(
-				"SELECT * FROM {$tests_table} WHERE test_id = %d",
+				"SELECT * FROM {$wpdb->prefix}elementtest_tests WHERE test_id = %d",
 				$test_id
 			),
 			ARRAY_A
@@ -725,7 +723,7 @@ class ElementTest_Ajax_Handler {
 		// Fetch associated variants.
 		$variants = $wpdb->get_results(
 			$wpdb->prepare(
-				"SELECT * FROM {$variants_table} WHERE test_id = %d ORDER BY is_control DESC, variant_id ASC",
+				"SELECT * FROM {$wpdb->prefix}elementtest_variants WHERE test_id = %d ORDER BY is_control DESC, variant_id ASC",
 				$test_id
 			),
 			ARRAY_A
@@ -739,7 +737,7 @@ class ElementTest_Ajax_Handler {
 		// Fetch associated conversion goals.
 		$conversions = $wpdb->get_results(
 			$wpdb->prepare(
-				"SELECT * FROM {$conversions_table} WHERE test_id = %d ORDER BY conversion_id ASC",
+				"SELECT * FROM {$wpdb->prefix}elementtest_conversions WHERE test_id = %d ORDER BY conversion_id ASC",
 				$test_id
 			),
 			ARRAY_A
@@ -762,7 +760,6 @@ class ElementTest_Ajax_Handler {
 		$this->verify_admin_request();
 
 		global $wpdb;
-		$table = $wpdb->prefix . 'elementtest_tests';
 
 		$status = isset( $_REQUEST['status'] ) ? sanitize_text_field( wp_unslash( $_REQUEST['status'] ) ) : '';
 
@@ -775,7 +772,7 @@ class ElementTest_Ajax_Handler {
 
 			$tests = $wpdb->get_results(
 				$wpdb->prepare(
-					"SELECT * FROM {$table} WHERE status = %s ORDER BY updated_at DESC",
+					"SELECT * FROM {$wpdb->prefix}elementtest_tests WHERE status = %s ORDER BY updated_at DESC",
 					$status
 				),
 				ARRAY_A
@@ -783,7 +780,7 @@ class ElementTest_Ajax_Handler {
 		} else {
 			// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Table name is safe.
 			$tests = $wpdb->get_results(
-				"SELECT * FROM {$table} ORDER BY updated_at DESC",
+				"SELECT * FROM {$wpdb->prefix}elementtest_tests ORDER BY updated_at DESC",
 				ARRAY_A
 			);
 		}
@@ -820,7 +817,7 @@ class ElementTest_Ajax_Handler {
 		// Verify the test exists.
 		$exists = $wpdb->get_var(
 			$wpdb->prepare(
-				"SELECT test_id FROM {$tests_table} WHERE test_id = %d",
+				"SELECT test_id FROM {$wpdb->prefix}elementtest_tests WHERE test_id = %d",
 				$test_id
 			)
 		);
@@ -881,7 +878,7 @@ class ElementTest_Ajax_Handler {
 		// Verify the test exists and get its current status.
 		$current_status = $wpdb->get_var(
 			$wpdb->prepare(
-				"SELECT status FROM {$table} WHERE test_id = %d",
+				"SELECT status FROM {$wpdb->prefix}elementtest_tests WHERE test_id = %d",
 				$test_id
 			)
 		);
@@ -951,7 +948,6 @@ class ElementTest_Ajax_Handler {
 		global $wpdb;
 
 		$variants_table = $wpdb->prefix . 'elementtest_variants';
-		$tests_table    = $wpdb->prefix . 'elementtest_tests';
 
 		$variant_id         = isset( $_POST['variant_id'] ) ? absint( $_POST['variant_id'] ) : 0;
 		$test_id            = isset( $_POST['test_id'] ) ? absint( $_POST['test_id'] ) : 0;
@@ -976,7 +972,7 @@ class ElementTest_Ajax_Handler {
 		// Verify the parent test exists.
 		$test_exists = $wpdb->get_var(
 			$wpdb->prepare(
-				"SELECT test_id FROM {$tests_table} WHERE test_id = %d",
+				"SELECT test_id FROM {$wpdb->prefix}elementtest_tests WHERE test_id = %d",
 				$test_id
 			)
 		);
@@ -1021,7 +1017,7 @@ class ElementTest_Ajax_Handler {
 			// Update existing variant.
 			$exists = $wpdb->get_var(
 				$wpdb->prepare(
-					"SELECT variant_id FROM {$variants_table} WHERE variant_id = %d AND test_id = %d",
+					"SELECT variant_id FROM {$wpdb->prefix}elementtest_variants WHERE variant_id = %d AND test_id = %d",
 					$variant_id,
 					$test_id
 				)
@@ -1065,7 +1061,7 @@ class ElementTest_Ajax_Handler {
 		// Return the saved variant.
 		$variant = $wpdb->get_row(
 			$wpdb->prepare(
-				"SELECT * FROM {$variants_table} WHERE variant_id = %d",
+				"SELECT * FROM {$wpdb->prefix}elementtest_variants WHERE variant_id = %d",
 				$variant_id
 			),
 			ARRAY_A
@@ -1110,7 +1106,7 @@ class ElementTest_Ajax_Handler {
 		// Verify the variant exists.
 		$exists = $wpdb->get_var(
 			$wpdb->prepare(
-				"SELECT variant_id FROM {$variants_table} WHERE variant_id = %d",
+				"SELECT variant_id FROM {$wpdb->prefix}elementtest_variants WHERE variant_id = %d",
 				$variant_id
 			)
 		);
@@ -1148,7 +1144,6 @@ class ElementTest_Ajax_Handler {
 		$this->verify_admin_request();
 
 		global $wpdb;
-		$table = $wpdb->prefix . 'elementtest_variants';
 
 		$test_id = isset( $_REQUEST['test_id'] ) ? absint( $_REQUEST['test_id'] ) : 0;
 
@@ -1160,7 +1155,7 @@ class ElementTest_Ajax_Handler {
 
 		$variants = $wpdb->get_results(
 			$wpdb->prepare(
-				"SELECT * FROM {$table} WHERE test_id = %d ORDER BY is_control DESC, variant_id ASC",
+				"SELECT * FROM {$wpdb->prefix}elementtest_variants WHERE test_id = %d ORDER BY is_control DESC, variant_id ASC",
 				$test_id
 			),
 			ARRAY_A
@@ -1199,7 +1194,6 @@ class ElementTest_Ajax_Handler {
 		global $wpdb;
 
 		$conversions_table = $wpdb->prefix . 'elementtest_conversions';
-		$tests_table       = $wpdb->prefix . 'elementtest_tests';
 
 		$conversion_id   = isset( $_POST['conversion_id'] ) ? absint( $_POST['conversion_id'] ) : 0;
 		$test_id         = isset( $_POST['test_id'] ) ? absint( $_POST['test_id'] ) : 0;
@@ -1231,7 +1225,7 @@ class ElementTest_Ajax_Handler {
 		// Verify the parent test exists.
 		$test_exists = $wpdb->get_var(
 			$wpdb->prepare(
-				"SELECT test_id FROM {$tests_table} WHERE test_id = %d",
+				"SELECT test_id FROM {$wpdb->prefix}elementtest_tests WHERE test_id = %d",
 				$test_id
 			)
 		);
@@ -1260,7 +1254,7 @@ class ElementTest_Ajax_Handler {
 			// Update existing conversion goal.
 			$exists = $wpdb->get_var(
 				$wpdb->prepare(
-					"SELECT conversion_id FROM {$conversions_table} WHERE conversion_id = %d AND test_id = %d",
+					"SELECT conversion_id FROM {$wpdb->prefix}elementtest_conversions WHERE conversion_id = %d AND test_id = %d",
 					$conversion_id,
 					$test_id
 				)
@@ -1304,7 +1298,7 @@ class ElementTest_Ajax_Handler {
 		// Return the saved conversion goal.
 		$conversion = $wpdb->get_row(
 			$wpdb->prepare(
-				"SELECT * FROM {$conversions_table} WHERE conversion_id = %d",
+				"SELECT * FROM {$wpdb->prefix}elementtest_conversions WHERE conversion_id = %d",
 				$conversion_id
 			),
 			ARRAY_A
@@ -1330,7 +1324,6 @@ class ElementTest_Ajax_Handler {
 		$this->verify_admin_request();
 
 		global $wpdb;
-		$table = $wpdb->prefix . 'elementtest_conversions';
 
 		$test_id = isset( $_REQUEST['test_id'] ) ? absint( $_REQUEST['test_id'] ) : 0;
 
@@ -1342,7 +1335,7 @@ class ElementTest_Ajax_Handler {
 
 		$conversions = $wpdb->get_results(
 			$wpdb->prepare(
-				"SELECT * FROM {$table} WHERE test_id = %d ORDER BY conversion_id ASC",
+				"SELECT * FROM {$wpdb->prefix}elementtest_conversions WHERE test_id = %d ORDER BY conversion_id ASC",
 				$test_id
 			),
 			ARRAY_A
@@ -1375,8 +1368,6 @@ class ElementTest_Ajax_Handler {
 		global $wpdb;
 
 		$events_table   = $wpdb->prefix . 'elementtest_events';
-		$tests_table    = $wpdb->prefix . 'elementtest_tests';
-		$variants_table = $wpdb->prefix . 'elementtest_variants';
 
 		$test_id    = isset( $_POST['test_id'] ) ? absint( $_POST['test_id'] ) : 0;
 		$variant_id = isset( $_POST['variant_id'] ) ? absint( $_POST['variant_id'] ) : 0;
@@ -1402,7 +1393,7 @@ class ElementTest_Ajax_Handler {
 		// Verify the test is currently running.
 		$test_status = $wpdb->get_var(
 			$wpdb->prepare(
-				"SELECT status FROM {$tests_table} WHERE test_id = %d",
+				"SELECT status FROM {$wpdb->prefix}elementtest_tests WHERE test_id = %d",
 				$test_id
 			)
 		);
@@ -1417,7 +1408,7 @@ class ElementTest_Ajax_Handler {
 		// Verify the variant belongs to the test.
 		$variant_exists = $wpdb->get_var(
 			$wpdb->prepare(
-				"SELECT variant_id FROM {$variants_table} WHERE variant_id = %d AND test_id = %d",
+				"SELECT variant_id FROM {$wpdb->prefix}elementtest_variants WHERE variant_id = %d AND test_id = %d",
 				$variant_id,
 				$test_id
 			)
@@ -1451,7 +1442,7 @@ class ElementTest_Ajax_Handler {
 		// variant within a 30-minute window.
 		$recent = $wpdb->get_var(
 			$wpdb->prepare(
-				"SELECT event_id FROM {$events_table}
+				"SELECT event_id FROM {$wpdb->prefix}elementtest_events
 				WHERE test_id = %d
 				  AND variant_id = %d
 				  AND user_hash = %s
@@ -1521,9 +1512,6 @@ class ElementTest_Ajax_Handler {
 		global $wpdb;
 
 		$events_table      = $wpdb->prefix . 'elementtest_events';
-		$tests_table       = $wpdb->prefix . 'elementtest_tests';
-		$variants_table    = $wpdb->prefix . 'elementtest_variants';
-		$conversions_table = $wpdb->prefix . 'elementtest_conversions';
 
 		$test_id       = isset( $_POST['test_id'] ) ? absint( $_POST['test_id'] ) : 0;
 		$variant_id    = isset( $_POST['variant_id'] ) ? absint( $_POST['variant_id'] ) : 0;
@@ -1563,7 +1551,7 @@ class ElementTest_Ajax_Handler {
 		// Verify the test is currently running.
 		$test = $wpdb->get_row(
 			$wpdb->prepare(
-				"SELECT status, page_url FROM {$tests_table} WHERE test_id = %d",
+				"SELECT status, page_url FROM {$wpdb->prefix}elementtest_tests WHERE test_id = %d",
 				$test_id
 			),
 			ARRAY_A
@@ -1581,7 +1569,7 @@ class ElementTest_Ajax_Handler {
 		// Verify the variant belongs to the test.
 		$variant_exists = $wpdb->get_var(
 			$wpdb->prepare(
-				"SELECT variant_id FROM {$variants_table} WHERE variant_id = %d AND test_id = %d",
+				"SELECT variant_id FROM {$wpdb->prefix}elementtest_variants WHERE variant_id = %d AND test_id = %d",
 				$variant_id,
 				$test_id
 			)
@@ -1610,7 +1598,7 @@ class ElementTest_Ajax_Handler {
 			$conversion = $wpdb->get_row(
 				$wpdb->prepare(
 					"SELECT conversion_id, trigger_type, revenue_value
-					FROM {$conversions_table}
+					FROM {$wpdb->prefix}elementtest_conversions
 					WHERE conversion_id = %d AND test_id = %d",
 					$conversion_id,
 					$test_id
@@ -1663,7 +1651,7 @@ class ElementTest_Ajax_Handler {
 			$recent_conversions = $wpdb->get_results(
 				$wpdb->prepare(
 					"SELECT event_data
-					FROM {$events_table}
+					FROM {$wpdb->prefix}elementtest_events
 					WHERE test_id = %d
 					  AND variant_id = %d
 					  AND user_hash = %s
@@ -1697,7 +1685,7 @@ class ElementTest_Ajax_Handler {
 		} else {
 			$recent_conversion = (bool) $wpdb->get_var(
 				$wpdb->prepare(
-					"SELECT event_id FROM {$events_table}
+					"SELECT event_id FROM {$wpdb->prefix}elementtest_events
 					WHERE test_id = %d
 					  AND variant_id = %d
 					  AND user_hash = %s
@@ -2130,10 +2118,6 @@ class ElementTest_Ajax_Handler {
 
 		global $wpdb;
 
-		$events_table   = $wpdb->prefix . 'elementtest_events';
-		$tests_table    = $wpdb->prefix . 'elementtest_tests';
-		$variants_table = $wpdb->prefix . 'elementtest_variants';
-
 		$test_id         = isset( $_POST['test_id'] ) ? absint( $_POST['test_id'] ) : 0;
 		$user_hash       = ElementTest_Visitor::get_user_hash();
 		$client_page_url = isset( $_POST['page_url'] ) ? esc_url_raw( substr( wp_unslash( $_POST['page_url'] ), 0, 500 ) ) : '';
@@ -2159,7 +2143,7 @@ class ElementTest_Ajax_Handler {
 		// Verify the test is currently running.
 		$test = $wpdb->get_row(
 			$wpdb->prepare(
-				"SELECT status, page_url FROM {$tests_table} WHERE test_id = %d",
+				"SELECT status, page_url FROM {$wpdb->prefix}elementtest_tests WHERE test_id = %d",
 				$test_id
 			),
 			ARRAY_A
@@ -2188,7 +2172,7 @@ class ElementTest_Ajax_Handler {
 			// Check for existing assignment (sticky sessions).
 			$existing_variant_id = $wpdb->get_var(
 				$wpdb->prepare(
-					"SELECT variant_id FROM {$events_table}
+					"SELECT variant_id FROM {$wpdb->prefix}elementtest_events
 					WHERE test_id = %d
 					  AND user_hash = %s
 					  AND event_type = 'impression'
@@ -2204,7 +2188,7 @@ class ElementTest_Ajax_Handler {
 			// Verify the variant still exists (it may have been deleted).
 			$variant = $wpdb->get_row(
 				$wpdb->prepare(
-					"SELECT variant_id, name, changes, is_control FROM {$variants_table}
+					"SELECT variant_id, name, changes, is_control FROM {$wpdb->prefix}elementtest_variants
 					WHERE variant_id = %d AND test_id = %d",
 					$existing_variant_id,
 					$test_id
@@ -2230,7 +2214,7 @@ class ElementTest_Ajax_Handler {
 		$variants = $wpdb->get_results(
 			$wpdb->prepare(
 				"SELECT variant_id, name, changes, traffic_percentage, is_control
-				FROM {$variants_table}
+				FROM {$wpdb->prefix}elementtest_variants
 				WHERE test_id = %d
 				ORDER BY is_control DESC, variant_id ASC",
 				$test_id
@@ -2406,7 +2390,7 @@ class ElementTest_Ajax_Handler {
 
 		// Get the original test.
 		$test = $wpdb->get_row(
-			$wpdb->prepare( "SELECT * FROM {$tests_table} WHERE test_id = %d", $test_id ),
+			$wpdb->prepare( "SELECT * FROM {$wpdb->prefix}elementtest_tests WHERE test_id = %d", $test_id ),
 			ARRAY_A
 		);
 
@@ -2441,7 +2425,7 @@ class ElementTest_Ajax_Handler {
 
 		// Duplicate variants.
 		$variants = $wpdb->get_results(
-			$wpdb->prepare( "SELECT * FROM {$variants_table} WHERE test_id = %d", $test_id ),
+			$wpdb->prepare( "SELECT * FROM {$wpdb->prefix}elementtest_variants WHERE test_id = %d", $test_id ),
 			ARRAY_A
 		);
 
@@ -2462,7 +2446,7 @@ class ElementTest_Ajax_Handler {
 
 		// Duplicate conversion goals.
 		$goals = $wpdb->get_results(
-			$wpdb->prepare( "SELECT * FROM {$conversions_table} WHERE test_id = %d", $test_id ),
+			$wpdb->prepare( "SELECT * FROM {$wpdb->prefix}elementtest_conversions WHERE test_id = %d", $test_id ),
 			ARRAY_A
 		);
 
@@ -2609,6 +2593,7 @@ class ElementTest_Ajax_Handler {
 
 		// Inject the selector script before </body>.
 		$inject_url = ELEMENTTEST_PLUGIN_URL . 'assets/js/selector-inject.js?v=' . ELEMENTTEST_VERSION;
+		// phpcs:ignore WordPress.WP.EnqueuedResources.NonEnqueuedScript -- The tag is injected into proxied third-party page HTML rendered inside the element-selector iframe, where WordPress is not loaded and wp_enqueue_script() cannot run.
 		$script_tag = '<script src="' . esc_url( $inject_url ) . '"></script>';
 
 		// Also inject a base tag to fix relative URLs.
@@ -2660,13 +2645,10 @@ class ElementTest_Ajax_Handler {
 			wp_send_json_error( __( 'Invalid test ID.', 'elementtest-pro' ) );
 		}
 
-		$events_table   = $wpdb->prefix . 'elementtest_events';
-		$variants_table = $wpdb->prefix . 'elementtest_variants';
-
 		// Get variant names.
 		$variants = $wpdb->get_results(
 			$wpdb->prepare(
-				"SELECT variant_id, name FROM {$variants_table} WHERE test_id = %d ORDER BY is_control DESC, variant_id ASC",
+				"SELECT variant_id, name FROM {$wpdb->prefix}elementtest_variants WHERE test_id = %d ORDER BY is_control DESC, variant_id ASC",
 				$test_id
 			)
 		);
@@ -2680,7 +2662,7 @@ class ElementTest_Ajax_Handler {
 		$rows = $wpdb->get_results(
 			$wpdb->prepare(
 				"SELECT DATE(created_at) AS event_date, variant_id, event_type, COUNT(*) AS cnt
-				 FROM {$events_table}
+				 FROM {$wpdb->prefix}elementtest_events
 				 WHERE test_id = %d
 				 GROUP BY event_date, variant_id, event_type
 				 ORDER BY event_date ASC",
@@ -2734,10 +2716,6 @@ class ElementTest_Ajax_Handler {
 
 		global $wpdb;
 
-		$tests_table       = $wpdb->prefix . 'elementtest_tests';
-		$variants_table    = $wpdb->prefix . 'elementtest_variants';
-		$conversions_table = $wpdb->prefix . 'elementtest_conversions';
-
 		$test_ids = isset( $_POST['test_ids'] ) && is_array( $_POST['test_ids'] )
 			? array_map( 'absint', $_POST['test_ids'] )
 			: array();
@@ -2746,15 +2724,15 @@ class ElementTest_Ajax_Handler {
 			$placeholders = implode( ',', array_fill( 0, count( $test_ids ), '%d' ) );
 			$tests = $wpdb->get_results(
 				$wpdb->prepare(
-					// phpcs:ignore WordPress.DB.PreparedSQLPlaceholders.UnfinishedPrepare -- dynamic placeholder count.
-					"SELECT * FROM {$tests_table} WHERE test_id IN ({$placeholders}) ORDER BY test_id ASC",
+					// phpcs:ignore WordPress.DB.PreparedSQLPlaceholders.UnfinishedPrepare, WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- $placeholders is a %d-only list sized to the value count.
+					"SELECT * FROM {$wpdb->prefix}elementtest_tests WHERE test_id IN ({$placeholders}) ORDER BY test_id ASC",
 					$test_ids
 				),
 				ARRAY_A
 			);
 		} else {
 			$tests = $wpdb->get_results(
-				"SELECT * FROM {$tests_table} ORDER BY test_id ASC",
+				"SELECT * FROM {$wpdb->prefix}elementtest_tests ORDER BY test_id ASC",
 				ARRAY_A
 			);
 		}
@@ -2776,7 +2754,7 @@ class ElementTest_Ajax_Handler {
 
 			$variants = $wpdb->get_results(
 				$wpdb->prepare(
-					"SELECT name, changes, traffic_percentage, is_control FROM {$variants_table} WHERE test_id = %d ORDER BY is_control DESC, variant_id ASC",
+					"SELECT name, changes, traffic_percentage, is_control FROM {$wpdb->prefix}elementtest_variants WHERE test_id = %d ORDER BY is_control DESC, variant_id ASC",
 					$tid
 				),
 				ARRAY_A
@@ -2790,7 +2768,7 @@ class ElementTest_Ajax_Handler {
 
 			$goals = $wpdb->get_results(
 				$wpdb->prepare(
-					"SELECT name, trigger_type, trigger_selector, trigger_event, revenue_value FROM {$conversions_table} WHERE test_id = %d ORDER BY conversion_id ASC",
+					"SELECT name, trigger_type, trigger_selector, trigger_event, revenue_value FROM {$wpdb->prefix}elementtest_conversions WHERE test_id = %d ORDER BY conversion_id ASC",
 					$tid
 				),
 				ARRAY_A

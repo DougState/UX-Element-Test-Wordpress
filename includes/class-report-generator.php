@@ -27,13 +27,10 @@ class ElementTest_Report_Generator {
 
         $test_id = absint( $test_id );
 
-        $tests_table       = $wpdb->prefix . 'elementtest_tests';
-        $variants_table    = $wpdb->prefix . 'elementtest_variants';
-        $events_table      = $wpdb->prefix . 'elementtest_events';
-        $conversions_table = $wpdb->prefix . 'elementtest_conversions';
+        // phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Reporting reads on the plugin's own custom tables; no WP API equivalent, and report generation is an on-demand admin/CLI action.
 
         $test = $wpdb->get_row(
-            $wpdb->prepare( "SELECT * FROM {$tests_table} WHERE test_id = %d", $test_id )
+            $wpdb->prepare( "SELECT * FROM {$wpdb->prefix}elementtest_tests WHERE test_id = %d", $test_id )
         );
 
         if ( ! $test ) {
@@ -46,8 +43,8 @@ class ElementTest_Report_Generator {
                 "SELECT v.*,
                     COALESCE( SUM( CASE WHEN e.event_type = 'impression' THEN 1 ELSE 0 END ), 0 ) AS impressions,
                     COALESCE( SUM( CASE WHEN e.event_type = 'conversion' THEN 1 ELSE 0 END ), 0 ) AS conversions
-                FROM {$variants_table} v
-                LEFT JOIN {$events_table} e ON v.variant_id = e.variant_id AND e.test_id = v.test_id
+                FROM {$wpdb->prefix}elementtest_variants v
+                LEFT JOIN {$wpdb->prefix}elementtest_events e ON v.variant_id = e.variant_id AND e.test_id = v.test_id
                 WHERE v.test_id = %d
                 GROUP BY v.variant_id
                 ORDER BY v.is_control DESC, v.variant_id ASC",
@@ -60,7 +57,7 @@ class ElementTest_Report_Generator {
             $goal_rows = $wpdb->get_results(
                 $wpdb->prepare(
                     "SELECT conversion_id, COUNT(*) AS cnt
-                     FROM {$events_table}
+                     FROM {$wpdb->prefix}elementtest_events
                      WHERE variant_id = %d AND test_id = %d AND event_type = 'conversion' AND conversion_id IS NOT NULL
                      GROUP BY conversion_id",
                     absint( $v->variant_id ),
@@ -76,7 +73,7 @@ class ElementTest_Report_Generator {
         // Conversion goals.
         $goals = $wpdb->get_results(
             $wpdb->prepare(
-                "SELECT * FROM {$conversions_table} WHERE test_id = %d ORDER BY conversion_id ASC",
+                "SELECT * FROM {$wpdb->prefix}elementtest_conversions WHERE test_id = %d ORDER BY conversion_id ASC",
                 $test_id
             )
         );
@@ -85,14 +82,16 @@ class ElementTest_Report_Generator {
         $daily_rows = $wpdb->get_results(
             $wpdb->prepare(
                 "SELECT DATE(e.created_at) AS event_date, v.name AS variant_name, e.event_type, COUNT(*) AS cnt
-                 FROM {$events_table} e
-                 JOIN {$variants_table} v ON e.variant_id = v.variant_id
+                 FROM {$wpdb->prefix}elementtest_events e
+                 JOIN {$wpdb->prefix}elementtest_variants v ON e.variant_id = v.variant_id
                  WHERE e.test_id = %d
                  GROUP BY event_date, v.name, e.event_type
                  ORDER BY event_date ASC",
                 $test_id
             )
         );
+
+        // phpcs:enable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
 
         // Totals.
         $total_impressions = 0;
@@ -170,9 +169,9 @@ class ElementTest_Report_Generator {
     public function get_all_report_data() {
         global $wpdb;
 
-        $tests_table = $wpdb->prefix . 'elementtest_tests';
-        $ids         = $wpdb->get_col( "SELECT test_id FROM {$tests_table} WHERE status != 'draft' ORDER BY test_id ASC" );
-        $reports     = array();
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Reporting read on the plugin's own custom table; on-demand admin/CLI action.
+        $ids     = $wpdb->get_col( "SELECT test_id FROM {$wpdb->prefix}elementtest_tests WHERE status != 'draft' ORDER BY test_id ASC" );
+        $reports = array();
 
         foreach ( $ids as $id ) {
             $data = $this->get_report_data( absint( $id ) );
@@ -218,6 +217,7 @@ class ElementTest_Report_Generator {
      * @return string CSV content.
      */
     public function generate_csv( $data ) {
+        // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fopen -- In-memory php://temp stream used to assemble CSV output; no filesystem access, so WP_Filesystem does not apply.
         $handle = fopen( 'php://temp', 'r+' );
 
         // Header row: test metadata.
@@ -290,6 +290,7 @@ class ElementTest_Report_Generator {
 
         rewind( $handle );
         $csv = stream_get_contents( $handle );
+        // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose -- Closes the in-memory php://temp stream opened above; no filesystem access.
         fclose( $handle );
 
         return $csv;
@@ -314,27 +315,24 @@ class ElementTest_Report_Generator {
             return array();
         }
 
-        $variants_table = $wpdb->prefix . 'elementtest_variants';
-        $events_table   = $wpdb->prefix . 'elementtest_events';
-
         $placeholders = implode( ', ', array_fill( 0, count( $ids ), '%d' ) );
 
-        // phpcs:disable WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- table names from prefix; values are placeholders.
+        // phpcs:disable WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.PreparedSQLPlaceholders.UnfinishedPrepare, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Placeholder list is built from %d only; custom plugin tables with no WP API equivalent; admin list-table read.
         $rows = $wpdb->get_results(
             $wpdb->prepare(
                 "SELECT v.test_id AS test_id,
                     v.is_control AS is_control,
                     COALESCE( SUM( CASE WHEN e.event_type = 'impression' THEN 1 ELSE 0 END ), 0 ) AS impressions,
                     COALESCE( SUM( CASE WHEN e.event_type = 'conversion' THEN 1 ELSE 0 END ), 0 ) AS conversions
-                FROM {$variants_table} v
-                LEFT JOIN {$events_table} e ON e.variant_id = v.variant_id AND e.test_id = v.test_id
+                FROM {$wpdb->prefix}elementtest_variants v
+                LEFT JOIN {$wpdb->prefix}elementtest_events e ON e.variant_id = v.variant_id AND e.test_id = v.test_id
                 WHERE v.test_id IN ( {$placeholders} )
                 GROUP BY v.variant_id
                 ORDER BY v.is_control DESC, v.variant_id ASC",
                 $ids
             )
         );
-        // phpcs:enable WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+        // phpcs:enable WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.PreparedSQLPlaceholders.UnfinishedPrepare, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
 
         // Group variant rows by test.
         $by_test = array();
