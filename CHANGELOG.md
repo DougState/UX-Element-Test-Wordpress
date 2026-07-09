@@ -2,6 +2,16 @@
 
 `readme.txt` remains the canonical WordPress.org release history for this plugin. This file mirrors the shipped release notes in a GitHub-friendly format.
 
+## 2.5.10
+
+> WordPress.org Plugin Check (PCP) warning cleanup (PR #1) that resolves all 259 warnings from the 2026-07-09 scan — real code fixes plus documented, justified phpcs annotations for false positives. Verified with `php -l` on all edited files and a PHPCS (WPCS 3.x) run using the exact sniff set from the report, which now reports zero issues. JS `VERSION` constant in `assets/js/frontend.js` synced to 2.5.10 (per the 2.3.9 sync convention).
+
+- Compliance: **Removed the discouraged `load_plugin_textdomain()` call.** The `load_textdomain()` method and its `plugins_loaded` hook were removed from `elementtest-pro.php`; WordPress 4.6+ loads translations automatically for wp.org-hosted plugins. (PR #1)
+- Fix: **`$_POST['page_url']` sanitization order in `track_conversion()` and `get_variant_assignment()`.** Reordered so `esc_url_raw()` directly wraps the unslashed input, with `substr()` truncation applied afterward — the previous `esc_url_raw( substr( wp_unslash( ... ) ) )` nesting hid the sanitization from the sniff. Files: `includes/class-ajax-handler.php`. (PR #1)
+- Compliance: **Prefixed true file-scope globals in `uninstall.php`.** `$site_ids` / `$site_id` renamed to `$elementtest_site_ids` / `$elementtest_site_id`. (PR #1)
+- Compliance: **Documented false-positive nonce-verification warnings (~110).** Every AJAX handler in `includes/class-ajax-handler.php` calls `verify_admin_request()` / `verify_public_request()` (both wrap `check_ajax_referer()` and terminate with 403 on failure) as its first statement; the sniff cannot see cross-function verification. Added a file-level justified `phpcs:disable`, extended the per-line `MissingUnslash` ignores for `$_POST['variants']` / `$_POST['goals']` (fields are unslashed and sanitized individually inside the loops), and added per-line justifications for the 4 `error_log()` calls already gated behind `WP_DEBUG`. (PR #1)
+- Compliance: **Documented false-positive prefix warnings in view templates (~127).** The 6 templates under `includes/views/` are `include`d from within class methods, so their variables are function-scoped, not global; added a file-level justified annotation to each. (PR #1)
+
 ## 2.5.9
 
 > WordPress.org Plugin Check compliance work (PR #64) that takes the plugin to **zero Plugin Check errors** (verified with Plugin Check 1.6.0 against the distribution tree; report saved under `reports/wp-plugin-check/`). These changes were documented under 2.5.8 on `main` but did not ship in the released 2.5.8 zip, so they are released here as 2.5.9. JS `VERSION` constant in `assets/js/frontend.js` synced to 2.5.9 (per the 2.3.9 sync convention).

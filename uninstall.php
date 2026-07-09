@@ -13,11 +13,6 @@ if ( ! defined( 'WP_UNINSTALL_PLUGIN' ) ) {
 	exit;
 }
 
-// $site_ids and $site_id below are local function/loop variables; they
-// are not globals despite Plugin Check's report (uninstall.php is loaded
-// outside of any class scope).
-// phpcs:disable WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedVariableFound
-
 /**
  * Delete plugin options and drop plugin-owned tables for a single site.
  *
@@ -60,13 +55,13 @@ function elementtest_pro_uninstall_site() {
 }
 
 if ( is_multisite() ) {
-	$site_ids = get_sites( array(
+	$elementtest_site_ids = get_sites( array(
 		'fields' => 'ids',
 		'number' => 0,
 	) );
 
-	foreach ( $site_ids as $site_id ) {
-		switch_to_blog( $site_id );
+	foreach ( $elementtest_site_ids as $elementtest_site_id ) {
+		switch_to_blog( $elementtest_site_id );
 		elementtest_pro_uninstall_site();
 		restore_current_blog();
 	}

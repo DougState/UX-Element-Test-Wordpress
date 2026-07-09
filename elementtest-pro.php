@@ -3,7 +3,7 @@
  * Plugin Name: ElementTest Pro
  * Plugin URI: https://github.com/DougState/elementtest-pro
  * Description: A/B test various elements (CSS, copy, JS, images) of your pages and track conversion data to measure performance.
- * Version: 2.5.9
+ * Version: 2.5.10
  * Requires at least: 5.6
  * Tested up to: 7.0
  * Requires PHP: 7.4
@@ -23,7 +23,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 // Define plugin constants
-define( 'ELEMENTTEST_VERSION', '2.5.9' );
+define( 'ELEMENTTEST_VERSION', '2.5.10' );
 define( 'ELEMENTTEST_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'ELEMENTTEST_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
 define( 'ELEMENTTEST_PLUGIN_BASENAME', plugin_basename( __FILE__ ) );
@@ -62,9 +62,6 @@ class ElementTest_Pro {
         // Activation and deactivation hooks
         register_activation_hook( __FILE__, array( $this, 'activate' ) );
         register_deactivation_hook( __FILE__, array( $this, 'deactivate' ) );
-
-        // Load plugin textdomain
-        add_action( 'plugins_loaded', array( $this, 'load_textdomain' ) );
 
         // Admin menu
         add_action( 'admin_menu', array( $this, 'add_admin_menu' ) );
@@ -310,17 +307,6 @@ class ElementTest_Pro {
         foreach ( $tables as $table ) {
             dbDelta( $table );
         }
-    }
-
-    /**
-     * Load plugin textdomain
-     */
-    public function load_textdomain() {
-        load_plugin_textdomain(
-            'elementtest-pro',
-            false,
-            dirname( ELEMENTTEST_PLUGIN_BASENAME ) . '/languages'
-        );
     }
 
     /**

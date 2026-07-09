@@ -3,7 +3,7 @@ Contributors: Doug Wagner
 Tags: ab-testing, split-testing, conversion, optimization, analytics
 Requires at least: 5.6
 Tested up to: 7.0
-Stable tag: 2.5.9
+Stable tag: 2.5.10
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -62,6 +62,14 @@ Yes, ElementTest Pro is designed to work with popular page builders like Element
 All testing data is stored in your WordPress database. No external services are used.
 
 == Changelog ==
+
+= 2.5.10 =
+* Compliance: Resolved all 259 warnings from the WordPress.org Plugin Check (PCP) scan — the plugin now passes Plugin Check with zero errors and zero warnings (PR #1).
+* Compliance: Removed the discouraged `load_plugin_textdomain()` call; WordPress 4.6+ loads translations automatically for wp.org-hosted plugins (PR #1).
+* Fix: Reordered `$_POST['page_url']` sanitization in the conversion-tracking and variant-assignment AJAX handlers so `esc_url_raw()` directly wraps the unslashed input (PR #1).
+* Compliance: Prefixed the file-scope globals in `uninstall.php` (`$elementtest_site_ids` / `$elementtest_site_id`) (PR #1).
+* Compliance: Added documented, justified phpcs annotations for false positives — cross-function nonce verification in the AJAX handler, per-field unslash/sanitize loops, `WP_DEBUG`-gated `error_log()` calls, and function-scoped variables in the `includes/views/` templates (PR #1).
+* Internal: JS `VERSION` constant in `assets/js/frontend.js` synced to 2.5.10 to match the plugin version (per the 2.3.9 sync convention).
 
 = 2.5.9 =
 * Compliance: The plugin now passes the WordPress.org Plugin Check with zero errors (PR #64).

@@ -16,6 +16,8 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 // phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- This handler is the CRUD/tracking layer for the plugin's own custom tables (wp_elementtest_*), which have no WP API equivalent. Reads are request-scoped (admin screens or per-visitor tracking) where persistent object caching would serve stale A/B data.
 
+// phpcs:disable WordPress.Security.NonceVerification.Missing, WordPress.Security.NonceVerification.Recommended -- Every AJAX handler verifies a nonce as its first statement via verify_admin_request()/verify_public_request() (check_ajax_referer), which send a 403 response and terminate execution on failure. The sniff cannot detect nonce verification performed in a shared helper method.
+
 /**
  * Class ElementTest_Ajax_Handler
  *
@@ -509,7 +511,7 @@ class ElementTest_Ajax_Handler {
 
 			if ( false === $result ) {
 				if ( $wpdb->last_error && defined( 'WP_DEBUG' ) && WP_DEBUG ) {
-					error_log( '[ElementTest] Test insert failed. DB Error: ' . $wpdb->last_error );
+					error_log( '[ElementTest] Test insert failed. DB Error: ' . $wpdb->last_error ); // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- Gated behind WP_DEBUG; silent in production.
 				}
 				wp_send_json_error(
 					array( 'message' => __( 'Failed to create test.', 'elementtest-pro' ) )
@@ -526,7 +528,7 @@ class ElementTest_Ajax_Handler {
 			// Collect submitted variant IDs to detect removals.
 			$submitted_variant_ids = array();
 
-			// phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- sanitized per-field below.
+			// phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized, WordPress.Security.ValidatedSanitizedInput.MissingUnslash -- unslashed and sanitized per-field below.
 			foreach ( $_POST['variants'] as $variant_data ) {
 				$v_id      = isset( $variant_data['variant_id'] ) ? absint( $variant_data['variant_id'] ) : 0;
 				$v_name    = isset( $variant_data['name'] ) ? sanitize_text_field( wp_unslash( $variant_data['name'] ) ) : '';
@@ -592,7 +594,7 @@ class ElementTest_Ajax_Handler {
 			// Collect submitted conversion IDs to detect removals.
 			$submitted_goal_ids = array();
 
-			// phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- sanitized per-field below.
+			// phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized, WordPress.Security.ValidatedSanitizedInput.MissingUnslash -- unslashed and sanitized per-field below.
 			foreach ( $_POST['goals'] as $goal_data ) {
 				$g_id      = isset( $goal_data['conversion_id'] ) ? absint( $goal_data['conversion_id'] ) : 0;
 				$g_name    = isset( $goal_data['name'] ) ? sanitize_text_field( wp_unslash( $goal_data['name'] ) ) : '';
@@ -646,8 +648,8 @@ class ElementTest_Ajax_Handler {
 						array( '%d', '%s', '%s', '%s', '%s', '%f', '%s' )
 					);
 					if ( false === $goal_result && defined( 'WP_DEBUG' ) && WP_DEBUG ) {
-						error_log( '[ElementTest] Goal insert failed. DB Error: ' . $wpdb->last_error );
-						error_log( '[ElementTest] Goal data: ' . wp_json_encode( $g_data ) );
+						error_log( '[ElementTest] Goal insert failed. DB Error: ' . $wpdb->last_error ); // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- Gated behind WP_DEBUG; silent in production.
+						error_log( '[ElementTest] Goal data: ' . wp_json_encode( $g_data ) ); // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- Gated behind WP_DEBUG; silent in production.
 					}
 					$submitted_goal_ids[] = $wpdb->insert_id;
 				}
@@ -1518,7 +1520,7 @@ class ElementTest_Ajax_Handler {
 		$user_hash     = ElementTest_Visitor::get_user_hash();
 		$conversion_id = isset( $_POST['conversion_id'] ) ? absint( $_POST['conversion_id'] ) : 0;
 		$client_revenue = isset( $_POST['revenue'] ) ? floatval( $_POST['revenue'] ) : 0.00;
-		$client_page_url = isset( $_POST['page_url'] ) ? esc_url_raw( substr( wp_unslash( $_POST['page_url'] ), 0, 500 ) ) : '';
+		$client_page_url = isset( $_POST['page_url'] ) ? substr( esc_url_raw( wp_unslash( $_POST['page_url'] ) ), 0, 500 ) : '';
 		$product_id    = isset( $_POST['product_id'] ) ? absint( $_POST['product_id'] ) : 0;
 		$product_name  = isset( $_POST['product_name'] ) ? sanitize_text_field( wp_unslash( $_POST['product_name'] ) ) : '';
 		$product_qty   = isset( $_POST['product_qty'] ) ? absint( $_POST['product_qty'] ) : 0;
@@ -1766,7 +1768,7 @@ class ElementTest_Ajax_Handler {
 
 		if ( false === $result ) {
 			if ( $wpdb->last_error && defined( 'WP_DEBUG' ) && WP_DEBUG ) {
-				error_log( '[ElementTest] Conversion insert failed. DB Error: ' . $wpdb->last_error );
+				error_log( '[ElementTest] Conversion insert failed. DB Error: ' . $wpdb->last_error ); // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- Gated behind WP_DEBUG; silent in production.
 			}
 			wp_send_json_error(
 				array( 'message' => __( 'Failed to record conversion.', 'elementtest-pro' ) )
@@ -2120,7 +2122,7 @@ class ElementTest_Ajax_Handler {
 
 		$test_id         = isset( $_POST['test_id'] ) ? absint( $_POST['test_id'] ) : 0;
 		$user_hash       = ElementTest_Visitor::get_user_hash();
-		$client_page_url = isset( $_POST['page_url'] ) ? esc_url_raw( substr( wp_unslash( $_POST['page_url'] ), 0, 500 ) ) : '';
+		$client_page_url = isset( $_POST['page_url'] ) ? substr( esc_url_raw( wp_unslash( $_POST['page_url'] ) ), 0, 500 ) : '';
 		$force_variant   = isset( $_POST['force_variant'] ) ? sanitize_text_field( wp_unslash( $_POST['force_variant'] ) ) : '';
 
 		// Validate required fields.

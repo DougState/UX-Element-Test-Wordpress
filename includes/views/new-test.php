@@ -14,6 +14,8 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
+// phpcs:disable WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedVariableFound -- Template is included from within a class method; variables are function-scoped, not global.
+
 /*
  * Define test type options centrally so the select and JavaScript
  * can reference the same list.

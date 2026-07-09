@@ -16,6 +16,8 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
+// phpcs:disable WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedVariableFound -- Template is included from within a class method; variables are function-scoped, not global.
+
 // Defense-in-depth: the WordPress admin menu registers this page with the
 // manage_options capability, so non-admins can't reach render_settings_page().
 // Belt-and-suspenders check here so a future include from a non-admin context
