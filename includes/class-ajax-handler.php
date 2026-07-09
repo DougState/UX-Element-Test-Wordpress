@@ -247,6 +247,31 @@ class ElementTest_Ajax_Handler {
 	}
 
 	/**
+	 * Determine how long assignment proof should remain valid.
+	 *
+	 * The HttpOnly proof cookie must cover the same attribution window as the
+	 * client-readable variant cookie, otherwise delayed cross-page conversions
+	 * keep firing with a sticky variant but are rejected by the server gate.
+	 *
+	 * @since 2.5.6
+	 * @return int Token TTL in seconds.
+	 */
+	private function get_assignment_token_ttl() {
+		$settings    = get_option( 'elementtest_settings', array() );
+		$cookie_days = isset( $settings['cookie_days'] ) ? absint( $settings['cookie_days'] ) : 30;
+
+		if ( $cookie_days <= 0 ) {
+			$cookie_days = 30;
+		}
+
+		$cookie_days = min( 365, $cookie_days );
+		$default_ttl = $cookie_days * DAY_IN_SECONDS;
+		$ttl         = (int) apply_filters( 'elementtest_assignment_token_ttl', $default_ttl );
+
+		return $ttl > 0 ? $ttl : $default_ttl;
+	}
+
+	/**
 	 * Set the HttpOnly assignment proof cookie for the selected variant.
 	 *
 	 * @since 2.5.6
@@ -255,11 +280,7 @@ class ElementTest_Ajax_Handler {
 	 * @param string $user_hash  Server-derived visitor hash.
 	 */
 	private function set_assignment_proof_cookie( $test_id, $variant_id, $user_hash ) {
-		$ttl = (int) apply_filters( 'elementtest_assignment_token_ttl', DAY_IN_SECONDS );
-		if ( $ttl <= 0 ) {
-			$ttl = DAY_IN_SECONDS;
-		}
-
+		$ttl        = $this->get_assignment_token_ttl();
 		$expires_at = time() + $ttl;
 		$token      = $this->create_assignment_token( $test_id, $variant_id, $user_hash, $expires_at );
 		$name       = $this->get_assignment_cookie_name( $test_id );
@@ -485,7 +506,7 @@ class ElementTest_Ajax_Handler {
 			$result = $wpdb->insert( $table, $data, $format );
 
 			if ( false === $result ) {
-				if ( $wpdb->last_error ) {
+				if ( $wpdb->last_error && defined( 'WP_DEBUG' ) && WP_DEBUG ) {
 					error_log( '[ElementTest] Test insert failed. DB Error: ' . $wpdb->last_error );
 				}
 				wp_send_json_error(
@@ -622,7 +643,7 @@ class ElementTest_Ajax_Handler {
 						$g_data,
 						array( '%d', '%s', '%s', '%s', '%s', '%f', '%s' )
 					);
-					if ( false === $goal_result ) {
+					if ( false === $goal_result && defined( 'WP_DEBUG' ) && WP_DEBUG ) {
 						error_log( '[ElementTest] Goal insert failed. DB Error: ' . $wpdb->last_error );
 						error_log( '[ElementTest] Goal data: ' . wp_json_encode( $g_data ) );
 					}
@@ -1531,6 +1552,14 @@ class ElementTest_Ajax_Handler {
 			);
 		}
 
+		if ( ! $conversion_id ) {
+			$this->record_invalid_request();
+			status_header( 400 );
+			wp_send_json_error(
+				array( 'message' => __( 'Conversion goal is required.', 'elementtest-pro' ) )
+			);
+		}
+
 		// Verify the test is currently running.
 		$test = $wpdb->get_row(
 			$wpdb->prepare(
@@ -1733,18 +1762,13 @@ class ElementTest_Ajax_Handler {
 			'variant_id'    => $variant_id,
 			'user_hash'     => $user_hash,
 			'event_type'    => 'conversion',
-			'conversion_id' => $conversion_id > 0 ? $conversion_id : null,
+			'conversion_id' => $conversion_id,
 			'revenue'       => $revenue,
 			'event_data'    => $event_data,
 			'created_at'    => current_time( 'mysql', true ),
 		);
 
 		$insert_format = array( '%d', '%d', '%s', '%s', '%d', '%f', '%s', '%s' );
-
-		if ( 0 === $conversion_id ) {
-			unset( $insert_data['conversion_id'] );
-			$insert_format = array( '%d', '%d', '%s', '%s', '%f', '%s', '%s' );
-		}
 
 		$result = $wpdb->insert(
 			$events_table,
@@ -1753,7 +1777,7 @@ class ElementTest_Ajax_Handler {
 		);
 
 		if ( false === $result ) {
-			if ( $wpdb->last_error ) {
+			if ( $wpdb->last_error && defined( 'WP_DEBUG' ) && WP_DEBUG ) {
 				error_log( '[ElementTest] Conversion insert failed. DB Error: ' . $wpdb->last_error );
 			}
 			wp_send_json_error(
@@ -2235,8 +2259,12 @@ class ElementTest_Ajax_Handler {
 		}
 
 		if ( ! $assigned_variant ) {
-			// Weighted random selection based on traffic_percentage.
-			$assigned_variant = $this->select_variant_by_weight( $variants );
+			// Use IP-only identity for the deterministic seed so that rotating
+			// User-Agent cannot resample a different variant. The full user_hash
+			// (IP + UA) is still used for the proof cookie and tracking dedup.
+			$visitor_ip      = ElementTest_Visitor::get_visitor_ip();
+			$assignment_seed = hash( 'sha256', $visitor_ip . '|' . wp_salt( 'auth' ) );
+			$assigned_variant = $this->select_variant_by_stable_hash( $variants, $test_id, $assignment_seed );
 		}
 
 		if ( ! $assigned_variant ) {
@@ -2258,40 +2286,57 @@ class ElementTest_Ajax_Handler {
 	}
 
 	/**
-	 * Select a variant using weighted random selection.
+	 * Select a variant deterministically for the visitor/test tuple.
 	 *
-	 * Each variant's traffic_percentage acts as its weight in the random
-	 * selection. A total weight is computed and a random number is generated
-	 * within that range. The variant whose cumulative weight range contains
-	 * the random number is selected.
+	 * Mirrors the weighted random distribution while ensuring repeated
+	 * assignment requests from the same server-derived visitor identity cannot
+	 * resample variants and mint proof cookies for whichever variant wins.
 	 *
-	 * @since  1.0.0
-	 * @param  array $variants Array of variant rows, each with a 'traffic_percentage' key.
-	 * @return array|null      The selected variant row, or null on failure.
+	 * IMPORTANT: The $identity seed MUST NOT include attacker-controlled
+	 * inputs (e.g. User-Agent). Callers should pass an IP-only hash so
+	 * that User-Agent rotation cannot produce a different variant.
+	 *
+	 * @since  2.5.7
+	 * @param  array  $variants  Array of variant rows with traffic_percentage.
+	 * @param  int    $test_id   Test ID.
+	 * @param  string $identity  Server-derived visitor identity seed (IP-only hash).
+	 * @return array|null        The selected variant row, or null on failure.
 	 */
-	private function select_variant_by_weight( $variants ) {
-		$total_weight = 0;
+	private function select_variant_by_stable_hash( $variants, $test_id, $identity ) {
+		if ( empty( $variants ) ) {
+			return null;
+		}
 
+		$seed = substr(
+			hash_hmac(
+				'sha256',
+				absint( $test_id ) . '|' . (string) $identity,
+				wp_salt( 'auth' )
+			),
+			0,
+			8
+		);
+
+		$total_weight = 0;
 		foreach ( $variants as $variant ) {
-			$total_weight += (int) $variant['traffic_percentage'];
+			$total_weight += max( 0, (int) $variant['traffic_percentage'] );
 		}
 
 		if ( $total_weight <= 0 ) {
-			// Fallback: equal distribution when all weights are zero.
-			return $variants[ array_rand( $variants ) ];
+			$index = (int) ( hexdec( $seed ) % count( $variants ) );
+			return $variants[ $index ];
 		}
 
-		$random    = wp_rand( 1, $total_weight );
+		$bucket     = (int) ( hexdec( $seed ) % $total_weight ) + 1;
 		$cumulative = 0;
 
 		foreach ( $variants as $variant ) {
-			$cumulative += (int) $variant['traffic_percentage'];
-			if ( $random <= $cumulative ) {
+			$cumulative += max( 0, (int) $variant['traffic_percentage'] );
+			if ( $bucket <= $cumulative ) {
 				return $variant;
 			}
 		}
 
-		// Fallback -- should not be reached.
 		return end( $variants );
 	}
 
@@ -2569,8 +2614,16 @@ class ElementTest_Ajax_Handler {
 		// Also inject a base tag to fix relative URLs.
 		$base_tag = '<base href="' . esc_url( $url ) . '">';
 
-		// Insert base tag after <head>.
-		$html = preg_replace( '/(<head[^>]*>)/i', '$1' . $base_tag, $html, 1 );
+		// Insert base tag after <head>. Uses preg_replace_callback to avoid
+		// interpreting $N backreference sequences in the URL.
+		$html = preg_replace_callback(
+			'/(<head[^>]*>)/i',
+			static function ( $matches ) use ( $base_tag ) {
+				return $matches[1] . $base_tag;
+			},
+			$html,
+			1
+		);
 
 		// Insert script before </body>.
 		if ( stripos( $html, '</body>' ) !== false ) {

@@ -2,6 +2,24 @@
 
 `readme.txt` remains the canonical WordPress.org release history for this plugin. This file mirrors the shipped release notes in a GitHub-friendly format.
 
+## 2.5.8
+
+> Security fixes for two remaining Low findings from the 2026-04-06 `class-ajax-handler.php` review (PR #62), released as 2.5.8 (PR #63), merged to `main` after 2.5.7. JS `VERSION` constant in `assets/js/frontend.js` synced to 2.5.8 (per the 2.3.9 sync convention).
+
+- Fix: **`proxy_page()` preg_replace backreference vulnerability.** The `<base>` tag injection used `preg_replace` with a pattern-interpreted replacement string, so a same-origin URL containing `$1` (a valid URL character) could be misinterpreted as a regex backreference and corrupt the proxied HTML output. Replaced with `preg_replace_callback`, which does not interpret the replacement as a pattern. Files: `includes/class-ajax-handler.php`. (PR #62)
+
+- Fix: **Gate `$wpdb->last_error` logging behind `WP_DEBUG`.** Three `error_log()` call sites on insert failures (test, goal, conversion) unconditionally wrote full DB error text — which can include SQL statements, column names, and user-submitted values — to the PHP error log on production sites. Now logged only when `defined( 'WP_DEBUG' ) && WP_DEBUG`. Files: `includes/class-ajax-handler.php`. (PR #62)
+
+## 2.5.7
+
+> Correctness and security fixes for public variant assignment (PRs #58, #59, and #60), merged to `main` after 2.5.6. JS `VERSION` constant in `assets/js/frontend.js` synced to 2.5.7 (per the 2.3.9 sync convention).
+
+- Fix: **Assignment proof cookie lifetime aligned with sticky assignment window.** The HttpOnly proof cookie used a fixed 24-hour TTL while the visitor's sticky variant cookie respected the configured `cookie_days` setting (default 30 days). Cross-page pageview conversions after the first day were silently rejected by the proof gate even though the browser still held a valid assignment cookie. Added `get_assignment_token_ttl()` so proof lifetime defaults to the configured assignment duration (capped to the settings maximum), with the existing `elementtest_assignment_token_ttl` filter preserved. Files: `includes/class-ajax-handler.php`. Standalone regression checks in `tests/test-assignment-proof-ttl.php`. (PR #58)
+
+- Fix: **Stable public variant assignment before first impression.** Repeated `elementtest_get_variant_assignment` calls before an impression existed could resample variants, skewing traffic splits. First-time assignment is now deterministic from the server-derived visitor hash and test ID while preserving weighted splits. Also rejects public conversion tracking with `conversion_id=0` so direct no-goal aggregate conversion rows cannot be inserted. Files: `includes/class-ajax-handler.php`. Standalone regression checks in `tests/test-stable-variant-assignment.php`. (PR #59)
+
+- Fix: **User-Agent rotation assignment resampling.** `select_variant_by_stable_hash()` used the full `user_hash` (IP + User-Agent) as its seed, so an attacker could rotate User-Agent strings across assignment requests to resample variants, then track impressions/conversions for the chosen variant with a matching proof cookie. Assignment seed now uses an IP-only hash independent of User-Agent; proof cookies remain UA-bound for dedup. Removed unused `select_variant_by_weight()` and unreachable `conversion_id=0` insert handling. Files: `includes/class-ajax-handler.php`. (PR #60)
+
 ## 2.5.6
 
 > Security fix for unauthenticated public tracking forgery (PRs #56 and #57, closes #54), merged to `main` after 2.5.5. See `DECISIONS.md` (2026-06-29 "Public tracking writes require signed assignment proof") for rationale. JS `VERSION` constant in `assets/js/frontend.js` synced to 2.5.6 (per the 2.3.9 sync convention).

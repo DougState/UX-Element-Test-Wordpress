@@ -3,7 +3,7 @@ Contributors: Doug Wagner
 Tags: ab-testing, split-testing, conversion, optimization, analytics
 Requires at least: 5.6
 Tested up to: 6.7
-Stable tag: 2.5.6
+Stable tag: 2.5.8
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -62,6 +62,17 @@ Yes, ElementTest Pro is designed to work with popular page builders like Element
 All testing data is stored in your WordPress database. No external services are used.
 
 == Changelog ==
+
+= 2.5.8 =
+* Security: `proxy_page()` now uses `preg_replace_callback` instead of `preg_replace` when injecting the `<base>` tag, preventing a same-origin URL containing `$1` from being misinterpreted as a regex backreference and corrupting proxied HTML output (PR #62, release PR #63).
+* Security: Database error logging on insert failures (test, goal, conversion) is now gated behind `WP_DEBUG` so production sites do not write full SQL error text to the PHP error log by default (PR #62).
+* Internal: JS `VERSION` constant in `assets/js/frontend.js` synced to 2.5.8 to match the plugin version (per the 2.3.9 sync convention).
+
+= 2.5.7 =
+* Fix: Assignment proof cookie lifetime now matches the configured sticky assignment window (`cookie_days`, default 30 days) instead of a fixed 24-hour TTL. Cross-page pageview conversions on longer funnels were silently dropped after the first day even though the visitor still held a valid assignment cookie (PR #58).
+* Fix: Public variant assignment is now stable before the first impression — repeated assignment requests no longer resample variants and skew traffic splits. Public conversion tracking with `conversion_id=0` is rejected to prevent no-goal aggregate conversion rows (PR #59).
+* Fix: User-Agent rotation can no longer resample variant assignments. The assignment seed is now IP-only while proof cookies remain UA-bound for dedup (PR #60).
+* Internal: JS `VERSION` constant in `assets/js/frontend.js` synced to 2.5.7 to match the plugin version (per the 2.3.9 sync convention).
 
 = 2.5.6 =
 * Security: Public impression and conversion writes now require a server-minted signed assignment proof cookie (PRs #56 and #57, closes #54). The public AJAX nonce is a CSRF control, not proof that a visitor was assigned a variant — an unauthenticated client could harvest valid test/variant IDs from the page and POST directly to the tracking endpoints, forging impressions, conversions, and (for custom-event goals) arbitrary revenue. Fix: `elementtest_get_variant_assignment` is now the server-authoritative gate — it validates page scope, chooses the variant server-side, and sets an HttpOnly `elementtest_assignment_<test_id>` cookie bound to visitor hash, variant, and expiry. Impression and conversion handlers reject writes without a matching proof cookie. Public custom-event conversions default to the DB-stored goal revenue; sites that knowingly accept client-supplied dynamic revenue must opt in via the `elementtest_allow_public_custom_event_revenue` filter. The frontend requests assignment before applying variants, recording impressions, or registering conversion listeners. Cross-page pageview goals depend on the proof cookie created when the visitor saw the source test page; sessions without proof may need one fresh source-page visit before cross-page conversions count.
