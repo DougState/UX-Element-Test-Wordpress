@@ -3,7 +3,7 @@ Contributors: Doug Wagner
 Tags: ab-testing, split-testing, conversion, optimization, analytics
 Requires at least: 5.6
 Tested up to: 7.0
-Stable tag: 2.5.10
+Stable tag: 2.5.12
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -62,6 +62,13 @@ Yes, ElementTest Pro is designed to work with popular page builders like Element
 All testing data is stored in your WordPress database. No external services are used.
 
 == Changelog ==
+
+= 2.5.12 =
+* Add: update-source status indicator on the Plugins screen row (last check result and latest available version) and a warning notice when the release check fails — so update problems are never silent. On private mirrors, the notice also flags a missing or expired access token; the token value itself is never displayed.
+
+= 2.5.11 =
+* Add: GitHub Releases updater. The dashboard shows update notices and one-click updates when a new release is published on this repository (Update URI + `update_plugins_github.com`, WP 5.8+). No configuration needed for installs from this public repository. Private mirrors are also supported: define `ELEMENTTEST_GITHUB_TOKEN` in wp-config.php with a fine-grained GitHub token (Contents: read-only) to authenticate release checks and downloads (via the GitHub API asset endpoint; the token is never sent to the download CDN).
+* Add: release workflow builds `elementtest-pro-{version}.zip` and attaches it to the GitHub Release when a version tag is pushed.
 
 = 2.5.10 =
 * Compliance: Resolved all 259 warnings from the WordPress.org Plugin Check (PCP) scan — the plugin now passes Plugin Check with zero errors and zero warnings (PR #1).

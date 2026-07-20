@@ -1,0 +1,113 @@
+# Build a clean installable ZIP and attach it to a GitHub Release when a version tag is pushed.
+#
+# Tags accepted: v2.5.11 or 2.5.11 (semver). The tag (without leading v) must match:
+#   - elementtest-pro.php header Version
+#   - define( 'ELEMENTTEST_VERSION', ... )
+#   - readme.txt Stable tag
+#   - assets/js/frontend.js VERSION
+#
+# Asset name: elementtest-pro-{version}.zip with root folder elementtest-pro/ (WordPress upload layout).
+# The in-plugin GitHub updater (includes/class-github-updater.php) looks for this asset.
+
+name: Release
+
+on:
+  push:
+    tags:
+      - "v[0-9]+.[0-9]+.[0-9]+"
+      - "[0-9]+.[0-9]+.[0-9]+"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Build ZIP and publish GitHub Release
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Resolve version from tag
+        id: ver
+        run: |
+          RAW="${GITHUB_REF_NAME}"
+          VERSION="${RAW#v}"
+          if ! [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Tag must be semver (optional leading v): got ${RAW}"
+            exit 1
+          fi
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "tag=${RAW}" >> "$GITHUB_OUTPUT"
+          echo "Resolved version: ${VERSION}"
+
+      - name: Verify version numbers match in tree
+        run: |
+          set -euo pipefail
+          VERSION="${{ steps.ver.outputs.version }}"
+
+          HEADER=$(grep -E '^\s*\* Version:' elementtest-pro.php | head -1 | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' || true)
+          DEFINE=$(grep -E "define\(\s*'ELEMENTTEST_VERSION'" elementtest-pro.php | head -1 | grep -oE "[0-9]+\.[0-9]+\.[0-9]+" || true)
+          STABLE=$(grep -E '^Stable tag:' readme.txt | head -1 | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' || true)
+          JSVER=$(grep -E "var VERSION = '" assets/js/frontend.js | head -1 | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' || true)
+
+          echo "tag version:         ${VERSION}"
+          echo "header Version:      ${HEADER}"
+          echo "ELEMENTTEST_VERSION: ${DEFINE}"
+          echo "Stable tag:          ${STABLE}"
+          echo "JS VERSION:          ${JSVER}"
+
+          fail=0
+          for pair in "header:${HEADER}" "define:${DEFINE}" "stable:${STABLE}" "js:${JSVER}"; do
+            name=${pair%%:*}
+            val=${pair#*:}
+            if [ "$val" != "$VERSION" ]; then
+              echo "Mismatch: ${name}=${val} expected ${VERSION}"
+              fail=1
+            fi
+          done
+          if [ "$fail" -ne 0 ]; then
+            exit 1
+          fi
+
+      - name: Build distribution ZIP
+        run: |
+          set -euo pipefail
+          VERSION="${{ steps.ver.outputs.version }}"
+          STAGE="${RUNNER_TEMP}/elementtest-dist"
+          OUT="${GITHUB_WORKSPACE}/elementtest-pro-${VERSION}.zip"
+
+          rm -rf "${STAGE}"
+          mkdir -p "${STAGE}/elementtest-pro"
+
+          # rsync excludes from .distignore (comments and blanks stripped).
+          EXCLUDES=()
+          while IFS= read -r line || [ -n "$line" ]; do
+            line="${line%%#*}"
+            line="$(echo "$line" | xargs)"
+            [ -z "$line" ] && continue
+            EXCLUDES+=(--exclude="${line}")
+          done < .distignore
+
+          rsync -a "${EXCLUDES[@]}" ./ "${STAGE}/elementtest-pro/"
+
+          # Sanity: bootstrap file and updater present
+          test -f "${STAGE}/elementtest-pro/elementtest-pro.php"
+          test -f "${STAGE}/elementtest-pro/includes/class-github-updater.php"
+
+          (cd "${STAGE}" && zip -rq "${OUT}" elementtest-pro)
+
+          echo "Built $(ls -lh "${OUT}" | awk '{print $5}') → ${OUT}"
+          unzip -l "${OUT}" | head -25
+
+      - name: Create GitHub Release with asset
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.ver.outputs.tag }}
+          name: ElementTest Pro ${{ steps.ver.outputs.version }}
+          generate_release_notes: true
+          files: elementtest-pro-${{ steps.ver.outputs.version }}.zip
+          fail_on_unmatched_files: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

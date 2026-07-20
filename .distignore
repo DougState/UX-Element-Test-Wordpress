@@ -1,0 +1,27 @@
+# Files and paths excluded from distribution ZIPs (GitHub Releases / deploy).
+# Paths are relative to the repository root.
+
+.git
+.github
+.gitignore
+.gitattributes
+.distignore
+.DS_Store
+.claude
+.cursor
+.idea
+.vscode
+
+# Agent / session docs
+CLAUDE.md
+AGENTS.md
+SESSION.md
+
+# Local notes / IDE
+*.swp
+*.swo
+*.zip
+
+# Markdown not required in WP install (readme.txt is required)
+CHANGELOG.md
+README.md

@@ -2,6 +2,14 @@
 
 `readme.txt` remains the canonical WordPress.org release history for this plugin. This file mirrors the shipped release notes in a GitHub-friendly format.
 
+## 2.5.12
+
+> Update-source visibility: each real GitHub release check records its outcome (`ok`, `http_<code>`, `network_error`, etc.) in the non-autoloaded `elementtest_update_status` option. The Plugins-screen row shows a colored status line ("Updates: GitHub ✓ latest 2.5.12, checked 2 hours ago" / "check failing"), and a warning notice appears on plugins.php for users with `update_plugins` when checks fail. On installs updating from a private mirror, the notice distinguishes a missing access token from an expired/revoked one; the token value is never rendered anywhere. JS `VERSION` synced to 2.5.12.
+
+## 2.5.11
+
+> GitHub Releases auto-updates for off–WordPress.org installs. New `includes/class-github-updater.php` hooks `update_plugins_github.com` (via the new `Update URI` plugin header), `plugins_api`, and `upgrader_pre_download`: WordPress dashboards discover new versions published as GitHub Release ZIP assets on this repository and update with one click. Release data is cached in a 12-hour transient and cleared after upgrade. Private mirrors of this repository are also supported: define `ELEMENTTEST_GITHUB_TOKEN` in wp-config.php (fine-grained PAT, Contents: read-only) and the release check is authenticated, with update ZIPs downloading through the GitHub API asset endpoint resolved to GitHub's short-lived signed CDN URL without following redirects — the token is only ever sent to api.github.com. New `.github/workflows/release.yml` verifies the tag matches the header Version, `ELEMENTTEST_VERSION`, Stable tag, and the JS `VERSION`, builds `elementtest-pro-{version}.zip` from `.distignore`, and publishes it as a GitHub Release asset.
+
 ## 2.5.10
 
 > WordPress.org Plugin Check (PCP) warning cleanup (PR #1) that resolves all 259 warnings from the 2026-07-09 scan — real code fixes plus documented, justified phpcs annotations for false positives. Verified with `php -l` on all edited files and a PHPCS (WPCS 3.x) run using the exact sniff set from the report, which now reports zero issues. JS `VERSION` constant in `assets/js/frontend.js` synced to 2.5.10 (per the 2.3.9 sync convention).

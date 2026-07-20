@@ -3,7 +3,7 @@
  * Plugin Name: ElementTest Pro
  * Plugin URI: https://github.com/DougState/elementtest-pro
  * Description: A/B test various elements (CSS, copy, JS, images) of your pages and track conversion data to measure performance.
- * Version: 2.5.10
+ * Version: 2.5.12
  * Requires at least: 5.6
  * Tested up to: 7.0
  * Requires PHP: 7.4
@@ -13,6 +13,7 @@
  * License URI: https://www.gnu.org/licenses/gpl-2.0.html
  * Text Domain: elementtest-pro
  * Domain Path: /languages
+ * Update URI: https://github.com/DougState/UX-Element-Test-Wordpress
  *
  * @package ElementTestPro
  */
@@ -23,7 +24,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 // Define plugin constants
-define( 'ELEMENTTEST_VERSION', '2.5.10' );
+define( 'ELEMENTTEST_VERSION', '2.5.12' );
 define( 'ELEMENTTEST_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'ELEMENTTEST_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
 define( 'ELEMENTTEST_PLUGIN_BASENAME', plugin_basename( __FILE__ ) );
@@ -189,6 +190,10 @@ class ElementTest_Pro {
         require_once ELEMENTTEST_PLUGIN_DIR . 'includes/class-report-generator.php';
         require_once ELEMENTTEST_PLUGIN_DIR . 'includes/class-ajax-handler.php';
         ElementTest_Ajax_Handler::get_instance();
+
+        // GitHub Releases updater (Update URI → update_plugins_github.com).
+        require_once ELEMENTTEST_PLUGIN_DIR . 'includes/class-github-updater.php';
+        ElementTest_GitHub_Updater::init();
 
         // Frontend variant delivery -- only on the public side.
         if ( ! is_admin() ) {
