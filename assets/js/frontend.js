@@ -31,7 +31,7 @@ try {
 	// Constants & State
 	// =========================================================================
 
-	var VERSION = '2.5.13';
+	var VERSION = '2.5.14';
 	var OBSERVER_TIMEOUT = 8000; // Max time (ms) to wait for elements via MutationObserver.
 	var ANTIFLICKER_TIMEOUT = 3000; // Max time (ms) before forcing anti-flicker removal.
 

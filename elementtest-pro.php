@@ -3,12 +3,11 @@
  * Plugin Name: ElementTest Pro
  * Plugin URI: https://github.com/DougState/elementtest-pro
  * Description: A/B test various elements (CSS, copy, JS, images) of your pages and track conversion data to measure performance.
- * Version: 2.5.13
+ * Version: 2.5.14
  * Requires at least: 5.6
  * Tested up to: 7.0
  * Requires PHP: 7.4
- * Author: Elimstat Dev Ops
- * Author URI: https://elimstat.com
+ * Author: Doug Wagner
  * License: GPL v2 or later
  * License URI: https://www.gnu.org/licenses/gpl-2.0.html
  * Text Domain: elementtest-pro
@@ -24,7 +23,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 // Define plugin constants
-define( 'ELEMENTTEST_VERSION', '2.5.13' );
+define( 'ELEMENTTEST_VERSION', '2.5.14' );
 define( 'ELEMENTTEST_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'ELEMENTTEST_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
 define( 'ELEMENTTEST_PLUGIN_BASENAME', plugin_basename( __FILE__ ) );

@@ -2,6 +2,12 @@
 
 `readme.txt` remains the canonical WordPress.org release history for this plugin. This file mirrors the shipped release notes in a GitHub-friendly format.
 
+## 2.5.14
+
+> Plugin author set to Doug Wagner. JS `VERSION` synced to 2.5.14.
+
+- Change: **Author** set to Doug Wagner (removed Elimstat Dev Ops branding from the plugin header and update details modal).
+
 ## 2.5.13
 
 > Admin save-validation hardening and assignment proof cookie path fix for split home/siteurl installs. JS `VERSION` synced to 2.5.13.

@@ -210,7 +210,7 @@ class ElementTest_GitHub_Updater {
             'name'           => 'ElementTest Pro',
             'slug'           => self::SLUG,
             'version'        => $remote['version'],
-            'author'         => '<a href="https://elimstat.com">Elimstat Dev Ops</a>',
+            'author'         => 'Doug Wagner',
             'homepage'       => 'https://github.com/' . self::REPO,
             'requires'       => '5.6',
             'requires_php'   => '7.4',

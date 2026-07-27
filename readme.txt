@@ -3,7 +3,7 @@ Contributors: Doug Wagner
 Tags: ab-testing, split-testing, conversion, optimization, analytics
 Requires at least: 5.6
 Tested up to: 7.0
-Stable tag: 2.5.13
+Stable tag: 2.5.14
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -62,6 +62,10 @@ Yes, ElementTest Pro is designed to work with popular page builders like Element
 All testing data is stored in your WordPress database. No external services are used.
 
 == Changelog ==
+
+= 2.5.14 =
+* Change: Plugin author set to Doug Wagner.
+* Internal: JS `VERSION` constant in `assets/js/frontend.js` synced to 2.5.14.
 
 = 2.5.13 =
 * Fix: Admin test saves now fail closed when an existing variant or conversion goal row is invalid or cannot be written. Previously, malformed rows could be silently skipped and the editor could still show "Test saved successfully."
