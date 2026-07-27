@@ -2,6 +2,13 @@
 
 `readme.txt` remains the canonical WordPress.org release history for this plugin. This file mirrors the shipped release notes in a GitHub-friendly format.
 
+## 2.5.13
+
+> Admin save-validation hardening and assignment proof cookie path fix for split home/siteurl installs. JS `VERSION` synced to 2.5.13.
+
+- Fix: **Admin save fail-closed** for invalid existing variants/goals (ported from ElementTest-WP PR #4).
+- Fix: **Assignment proof cookie path** set to `/` so admin-ajax.php receives the signed cookie on split home/siteurl installs.
+
 ## 2.5.12
 
 > Update-source visibility: each real GitHub release check records its outcome (`ok`, `http_<code>`, `network_error`, etc.) in the non-autoloaded `elementtest_update_status` option. The Plugins-screen row shows a colored status line ("Updates: GitHub ✓ latest 2.5.12, checked 2 hours ago" / "check failing"), and a warning notice appears on plugins.php for users with `update_plugins` when checks fail. On installs updating from a private mirror, the notice distinguishes a missing access token from an expired/revoked one; the token value is never rendered anywhere. JS `VERSION` synced to 2.5.12.

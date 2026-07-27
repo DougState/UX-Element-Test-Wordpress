@@ -288,7 +288,10 @@ class ElementTest_Ajax_Handler {
 		$expires_at = time() + $ttl;
 		$token      = $this->create_assignment_token( $test_id, $variant_id, $user_hash, $expires_at );
 		$name       = $this->get_assignment_cookie_name( $test_id );
-		$path       = ( defined( 'COOKIEPATH' ) && COOKIEPATH ) ? COOKIEPATH : '/';
+		// Public tracking writes go through admin-ajax.php, which may live
+		// outside COOKIEPATH on split home/siteurl installs. Scope the signed
+		// proof cookie broadly so the AJAX verifier can receive it.
+		$path       = '/';
 		$options    = array(
 			'expires'  => $expires_at,
 			'path'     => $path,
@@ -540,6 +543,11 @@ class ElementTest_Ajax_Handler {
 				$v_control = isset( $variant_data['is_control'] ) ? absint( $variant_data['is_control'] ) : 0;
 
 				if ( empty( $v_name ) ) {
+					if ( $v_id > 0 ) {
+						wp_send_json_error(
+							array( 'message' => __( 'Variant name is required.', 'elementtest-pro' ) )
+						);
+					}
 					continue;
 				}
 
@@ -553,23 +561,50 @@ class ElementTest_Ajax_Handler {
 
 				if ( $v_id > 0 ) {
 					// Update existing variant (preserves variant_id for event data).
-					$wpdb->update(
+					$variant_exists = $wpdb->get_var(
+						$wpdb->prepare(
+							"SELECT variant_id FROM {$variants_table} WHERE variant_id = %d AND test_id = %d",
+							$v_id,
+							$test_id
+						)
+					);
+
+					if ( ! $variant_exists ) {
+						wp_send_json_error(
+							array( 'message' => __( 'Variant not found for this test.', 'elementtest-pro' ) )
+						);
+					}
+
+					$variant_result = $wpdb->update(
 						$variants_table,
 						$v_data,
 						array( 'variant_id' => $v_id, 'test_id' => $test_id ),
 						array( '%d', '%s', '%s', '%d', '%d' ),
 						array( '%d', '%d' )
 					);
+
+					if ( false === $variant_result ) {
+						wp_send_json_error(
+							array( 'message' => __( 'Failed to update variant.', 'elementtest-pro' ) )
+						);
+					}
 					$submitted_variant_ids[] = $v_id;
 				} else {
 					// Insert new variant.
 					$v_data['created_at'] = current_time( 'mysql', true );
-					$wpdb->insert(
+					$variant_result       = $wpdb->insert(
 						$variants_table,
 						$v_data,
 						array( '%d', '%s', '%s', '%d', '%d', '%s' )
 					);
-					$submitted_variant_ids[] = $wpdb->insert_id;
+
+					if ( false === $variant_result || ! $wpdb->insert_id ) {
+						wp_send_json_error(
+							array( 'message' => __( 'Failed to create variant.', 'elementtest-pro' ) )
+						);
+					}
+
+					$submitted_variant_ids[] = absint( $wpdb->insert_id );
 				}
 			}
 
@@ -605,11 +640,25 @@ class ElementTest_Ajax_Handler {
 				$g_revenue = isset( $goal_data['revenue_value'] ) ? floatval( $goal_data['revenue_value'] ) : 0.00;
 
 				if ( empty( $g_name ) || empty( $g_type ) ) {
+					$is_blank_new_goal = 0 === $g_id
+						&& empty( $g_name )
+						&& empty( $g_selector )
+						&& empty( $g_url )
+						&& empty( $g_event )
+						&& 0.0 === $g_revenue;
+
+					if ( ! $is_blank_new_goal ) {
+						wp_send_json_error(
+							array( 'message' => __( 'Conversion goal name and trigger type are required.', 'elementtest-pro' ) )
+						);
+					}
 					continue;
 				}
 
 				if ( ! in_array( $g_type, $this->valid_trigger_types, true ) ) {
-					continue;
+					wp_send_json_error(
+						array( 'message' => __( 'Invalid conversion goal trigger type.', 'elementtest-pro' ) )
+					);
 				}
 
 				// Determine trigger_event based on type.
@@ -631,13 +680,33 @@ class ElementTest_Ajax_Handler {
 
 				if ( $g_id > 0 ) {
 					// Update existing conversion goal.
-					$wpdb->update(
+					$goal_exists = $wpdb->get_var(
+						$wpdb->prepare(
+							"SELECT conversion_id FROM {$conversions_table} WHERE conversion_id = %d AND test_id = %d",
+							$g_id,
+							$test_id
+						)
+					);
+
+					if ( ! $goal_exists ) {
+						wp_send_json_error(
+							array( 'message' => __( 'Conversion goal not found for this test.', 'elementtest-pro' ) )
+						);
+					}
+
+					$goal_result = $wpdb->update(
 						$conversions_table,
 						$g_data,
 						array( 'conversion_id' => $g_id, 'test_id' => $test_id ),
 						array( '%d', '%s', '%s', '%s', '%s', '%f' ),
 						array( '%d', '%d' )
 					);
+
+					if ( false === $goal_result ) {
+						wp_send_json_error(
+							array( 'message' => __( 'Failed to update conversion goal.', 'elementtest-pro' ) )
+						);
+					}
 					$submitted_goal_ids[] = $g_id;
 				} else {
 					// Insert new conversion goal.
@@ -651,7 +720,14 @@ class ElementTest_Ajax_Handler {
 						error_log( '[ElementTest] Goal insert failed. DB Error: ' . $wpdb->last_error ); // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- Gated behind WP_DEBUG; silent in production.
 						error_log( '[ElementTest] Goal data: ' . wp_json_encode( $g_data ) ); // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- Gated behind WP_DEBUG; silent in production.
 					}
-					$submitted_goal_ids[] = $wpdb->insert_id;
+
+					if ( false === $goal_result || ! $wpdb->insert_id ) {
+						wp_send_json_error(
+							array( 'message' => __( 'Failed to create conversion goal.', 'elementtest-pro' ) )
+						);
+					}
+
+					$submitted_goal_ids[] = absint( $wpdb->insert_id );
 				}
 			}
 
