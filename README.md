@@ -25,7 +25,49 @@ Ready-to-install zip builds are published on [GitHub Releases](https://github.co
 - Performance analytics with statistical significance
 - Schedule-based test start/stop
 - Export reports as standalone HTML (with Chart.js visual dashboard), CSV, or JSON via admin UI or WP-CLI
+- Admin-only forced-variant preview URLs for QA
+- WP-CLI repair command for legacy JS/CSS variant source mangling
 - Optional GA4 custom event forwarding for variant conversions (fires `elementtest_converted` to your existing `gtag` tag in parallel with the plugin's DB tracking)
+
+## Developer and QA Workflows
+
+### Previewing a specific variant as an admin
+
+Logged-in admins can force the frontend assignment endpoint to return a specific variant for visual QA without waiting on random traffic allocation:
+
+```text
+https://example.com/product/my-page/?et_force=control
+https://example.com/product/my-page/?et_force=123
+```
+
+- `control` selects the control variant for every running test on the page.
+- A numeric value selects the matching `wp_elementtest_variants.variant_id` for that test.
+- The override is gated by `current_user_can( 'manage_options' )`; anonymous visitors and non-admin users ignore the query parameter and stay on the normal weighted assignment path.
+- The request still goes through `elementtest_get_variant_assignment`, page-scope validation, the normal `elementtest_variant_<test_id>` browser cookie, and the HttpOnly assignment-proof cookie. Use a clean browser/profile when you need to test organic random assignment after forcing variants.
+- Production admin preview traffic can still create impressions through the normal tracking flow. Prefer staging for repeated QA passes, or account for admin visits when reviewing report data.
+
+### Repairing pre-2.4.2 JS/CSS variant source
+
+Before 2.4.2, variant `changes` were sanitized with `wp_kses_post()` regardless of test type. For `js` and `css` tests this could encode operators and selectors (`>=` to `&gt;=`, `&&` to `&amp;&amp;`, `.a > .b` to `.a &gt; .b`) so variants either threw JavaScript syntax errors or CSS silently failed to match.
+
+Use the WP-CLI repair command to inspect and optionally decode affected rows:
+
+```bash
+# Dry-run scan of all JS/CSS variants. No database writes.
+wp elementtest fix-variant-changes
+
+# Show compact diffs for JavaScript variants only.
+wp elementtest fix-variant-changes --type=js --show-diff
+
+# Repair with a JSON backup of original rows.
+wp elementtest fix-variant-changes --apply \
+  --backup=variants-backup-$(date +%Y%m%d).json
+
+# Limit the repair to one test.
+wp elementtest fix-variant-changes --test-id=6 --apply --backup=t6.json
+```
+
+The command decodes only the five entity fingerprints produced by the old sanitizer (`&amp;`, `&lt;`, `&gt;`, `&quot;`, `&#039;`/`&#39;`). Other named entities such as `&nbsp;` and `&copy;` are left intact because they may be intentional inside HTML strings.
 
 ## Database Tables
 

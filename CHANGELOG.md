@@ -2,6 +2,14 @@
 
 `readme.txt` remains the canonical WordPress.org release history for this plugin. This file mirrors the shipped release notes in a GitHub-friendly format.
 
+## 2.5.15
+
+> Public tracking page-context hardening and selector-proxy redirect lock-down, plus admin save-test variant prune reorder so goal validation failures cannot delete variants. Ported from ElementTest-WP 2.5.14 (PRs #7 and #11). JS `VERSION` synced to 2.5.15.
+
+- Fix: **Signed `page_context` tokens** for public assignment, impression, and conversion writes. PHP embeds a signed token (test ID, server-observed URL, expiry) in localized payloads; the frontend sends it on tracking calls. Public write endpoints verify the token and scope writes to the rendered page. Pageview conversions are matched against the stored goal trigger instead of posted `page_url`.
+- Fix: **Admin selector proxy** uses `wp_safe_remote_get()`, disables redirects, and rejects 3xx responses.
+- Fix: **Variant pruning deferred** until after conversion-goal validation and persistence in `save_test()`, so a failed goal save cannot delete omitted variants.
+
 ## 2.5.14
 
 > Plugin author set to Doug Wagner. JS `VERSION` synced to 2.5.14.

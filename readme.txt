@@ -3,7 +3,7 @@ Contributors: Doug Wagner
 Tags: ab-testing, split-testing, conversion, optimization, analytics
 Requires at least: 5.6
 Tested up to: 7.0
-Stable tag: 2.5.14
+Stable tag: 2.5.15
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -27,6 +27,8 @@ ElementTest Pro allows you to A/B test various elements (CSS, copy, JS, images) 
 * Statistical significance calculator
 * JSON import/export for test portability
 * Report export (HTML and CSV) with WP-CLI support
+* Admin-only forced variant preview URLs for QA
+* WP-CLI repair command for legacy JS/CSS variant source mangling
 * Optional GA4 custom event forwarding for variant conversions (see the **GA4 Integration** section below for the full operator's guide)
 
 == GA4 Integration ==
@@ -57,11 +59,31 @@ ElementTest Pro can forward variant conversions to Google Analytics 4 as custom 
 
 Yes, ElementTest Pro is designed to work with popular page builders like Elementor, Beaver Builder, and Divi.
 
+= How can admins preview a specific variant for QA? =
+
+Logged-in admins can append `?et_force=control` to preview the control variant, or `?et_force=<variant_id>` to preview a specific variant ID on a running test page. The override is gated by `manage_options`; anonymous visitors and non-admin users ignore the parameter and remain on normal weighted assignment. Because the normal assignment and tracking path still runs, use staging or a clean browser/profile for repeated production QA.
+
+= How do I repair old JS/CSS variants with encoded operators or selectors? =
+
+Use the WP-CLI command added for pre-2.4.2 data:
+
+    wp elementtest fix-variant-changes
+    wp elementtest fix-variant-changes --type=js --show-diff
+    wp elementtest fix-variant-changes --apply --backup=variants-backup.json
+
+The default mode is a dry run. `--apply` writes decoded JS/CSS source back to the database; pass `--backup=<file>` so the original rows are saved first. The command decodes the old `wp_kses_post()` fingerprints (`&amp;`, `&lt;`, `&gt;`, `&quot;`, and apostrophe entities) while leaving other named entities intact.
+
 = Where is the data stored? =
 
 All testing data is stored in your WordPress database. No external services are used.
 
 == Changelog ==
+
+= 2.5.15 =
+* Fix: Public assignment, impression, and conversion writes now require a signed server-rendered page_context token. Tracking is scoped to the rendered page, and pageview conversions are matched against the stored goal trigger instead of a posted page_url.
+* Fix: The admin visual-selector page proxy now uses wp_safe_remote_get(), disables redirects, and rejects 3xx responses.
+* Fix: Admin test saves no longer prune omitted variants until conversion-goal validation and persistence succeed, so a later goal error cannot delete variants.
+* Internal: JS `VERSION` constant in `assets/js/frontend.js` synced to 2.5.15.
 
 = 2.5.14 =
 * Change: Plugin author set to Doug Wagner.

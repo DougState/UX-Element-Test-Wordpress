@@ -191,9 +191,7 @@ class ElementTest_Frontend {
 			$active_test_ids[] = absint( $t->test_id );
 		}
 
-		$current_url = ( is_ssl() ? 'https' : 'http' ) . '://'
-			. ( isset( $_SERVER['HTTP_HOST'] ) ? sanitize_text_field( wp_unslash( $_SERVER['HTTP_HOST'] ) ) : '' )
-			. ( isset( $_SERVER['REQUEST_URI'] ) ? sanitize_text_field( wp_unslash( $_SERVER['REQUEST_URI'] ) ) : '/' );
+		$current_url = $this->get_current_url();
 		$current_request_uri = isset( $_SERVER['REQUEST_URI'] )
 			? sanitize_text_field( wp_unslash( $_SERVER['REQUEST_URI'] ) )
 			: '/';
@@ -325,6 +323,24 @@ class ElementTest_Frontend {
 		}
 
 		return $this->normalise_path( $request_path );
+	}
+
+	/**
+	 * Build the server-observed URL for the current request.
+	 *
+	 * @since 2.5.14
+	 * @return string Current request URL.
+	 */
+	private function get_current_url() {
+		$host = isset( $_SERVER['HTTP_HOST'] ) ? sanitize_text_field( wp_unslash( $_SERVER['HTTP_HOST'] ) ) : '';
+		$uri  = isset( $_SERVER['REQUEST_URI'] ) ? sanitize_text_field( wp_unslash( $_SERVER['REQUEST_URI'] ) ) : '/';
+
+		if ( '' === $host ) {
+			$home_host = wp_parse_url( home_url(), PHP_URL_HOST );
+			$host      = $home_host ? $home_host : '';
+		}
+
+		return ( is_ssl() ? 'https' : 'http' ) . '://' . $host . $uri;
 	}
 
 	/**
@@ -517,6 +533,7 @@ class ElementTest_Frontend {
 				'test_type'        => sanitize_key( $test->test_type ),
 				'variants'         => $variants_data,
 				'goals'            => $goals_data,
+				'page_context'     => $this->create_page_context_token( $test_id ),
 			);
 		}
 
@@ -547,9 +564,21 @@ class ElementTest_Frontend {
 				'variant_ids' => $entry['variant_ids'],
 				'variants'    => isset( $entry['variants'] ) ? $entry['variants'] : array(),
 				'goals'       => $entry['goals'],
+				'page_context' => $this->create_page_context_token( $entry['test_id'] ),
 			);
 		}
 		return $data;
+	}
+
+	/**
+	 * Create a signed context token for the current rendered page.
+	 *
+	 * @since 2.5.14
+	 * @param int $test_id Test ID.
+	 * @return string Signed page-context token.
+	 */
+	private function create_page_context_token( $test_id ) {
+		return ElementTest_Ajax_Handler::create_page_context_token( $test_id, $this->get_current_url() );
 	}
 
 	// =========================================================================

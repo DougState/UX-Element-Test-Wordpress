@@ -31,7 +31,7 @@ try {
 	// Constants & State
 	// =========================================================================
 
-	var VERSION = '2.5.14';
+	var VERSION = '2.5.15';
 	var OBSERVER_TIMEOUT = 8000; // Max time (ms) to wait for elements via MutationObserver.
 	var ANTIFLICKER_TIMEOUT = 3000; // Max time (ms) before forcing anti-flicker removal.
 
@@ -162,6 +162,29 @@ try {
 	}
 
 	/**
+	 * Find the signed page-context token for a test.
+	 *
+	 * @param {number} testId Test ID.
+	 * @return {string} Signed page-context token, or an empty string.
+	 */
+	function findPageContext( testId ) {
+		var sources = [
+			elementtestFrontend.tests || [],
+			elementtestFrontend.conversionOnlyTests || []
+		];
+
+		for ( var s = 0; s < sources.length; s++ ) {
+			for ( var i = 0; i < sources[ s ].length; i++ ) {
+				if ( String( sources[ s ][ i ].test_id ) === String( testId ) ) {
+					return sources[ s ][ i ].page_context || '';
+				}
+			}
+		}
+
+		return '';
+	}
+
+	/**
 	 * Request a server-authoritative assignment and proof cookie.
 	 *
 	 * Public tracking writes require the HttpOnly proof cookie set by
@@ -177,7 +200,8 @@ try {
 			nonce: elementtestFrontend.nonce,
 			test_id: test.test_id,
 			user_hash: elementtestFrontend.userHash,
-			page_url: window.location.href
+			page_url: window.location.href,
+			page_context: test.page_context || ''
 		};
 
 		if ( elementtestFrontend.isAdmin ) {
@@ -434,7 +458,8 @@ try {
 			nonce: elementtestFrontend.nonce,
 			test_id: testId,
 			variant_id: variantId,
-			user_hash: elementtestFrontend.userHash
+			user_hash: elementtestFrontend.userHash,
+			page_context: findPageContext( testId )
 		};
 
 		sendTrackingRequest( data );
@@ -474,7 +499,8 @@ try {
 			user_hash: elementtestFrontend.userHash,
 			conversion_id: conversionId,
 			revenue: revenue || 0,
-			page_url: window.location.href
+			page_url: window.location.href,
+			page_context: findPageContext( testId )
 		};
 
 		sendTrackingRequest( data );
@@ -1461,6 +1487,7 @@ try {
 			conversion_id: conversionId,
 			revenue: revenue || 0,
 			page_url: window.location.href,
+			page_context: findPageContext( testId ),
 			product_id: productId || '',
 			product_name: productName || '',
 			product_qty: productQty || 1

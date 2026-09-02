@@ -177,6 +177,148 @@ class ElementTest_Ajax_Handler {
 	}
 
 	/**
+	 * Create a signed token proving this page context was emitted by PHP.
+	 *
+	 * The public AJAX nonce is intentionally available to any visitor, so public
+	 * tracking requests also need proof that the request is tied to a page the
+	 * server actually rendered for the relevant test or pageview goal.
+	 *
+	 * @since 2.5.14
+	 * @param int         $test_id    Test ID.
+	 * @param string      $page_url   Server-observed page URL.
+	 * @param int|null    $expires_at Optional Unix expiration timestamp.
+	 * @return string Signed token.
+	 */
+	public static function create_page_context_token( $test_id, $page_url, $expires_at = null ) {
+		if ( null === $expires_at ) {
+			$expires_at = time() + self::get_page_context_token_ttl();
+		}
+
+		$payload = array(
+			'test_id'    => absint( $test_id ),
+			'page_url'   => substr( (string) $page_url, 0, 1000 ),
+			'expires_at' => absint( $expires_at ),
+		);
+
+		$body      = rtrim( strtr( base64_encode( wp_json_encode( $payload ) ), '+/', '-_' ), '=' );
+		$signature = hash_hmac( 'sha256', $body, wp_salt( 'auth' ) );
+
+		return $body . '.' . $signature;
+	}
+
+	/**
+	 * Determine how long page-context tokens should remain valid.
+	 *
+	 * @since 2.5.14
+	 * @return int Token TTL in seconds.
+	 */
+	private static function get_page_context_token_ttl() {
+		$default_ttl = DAY_IN_SECONDS;
+		$ttl         = (int) apply_filters( 'elementtest_page_context_token_ttl', $default_ttl );
+
+		return $ttl > 0 ? $ttl : $default_ttl;
+	}
+
+	/**
+	 * Decode and verify a signed page-context token.
+	 *
+	 * @since 2.5.14
+	 * @param string $token Signed token from the frontend payload.
+	 * @return array|null Payload array on success; null on failure.
+	 */
+	private static function parse_page_context_token( $token ) {
+		$token = trim( (string) $token );
+		if ( '' === $token ) {
+			return null;
+		}
+
+		$parts = explode( '.', $token, 2 );
+		if ( 2 !== count( $parts ) ) {
+			return null;
+		}
+
+		list( $body, $signature ) = $parts;
+		$expected_signature       = hash_hmac( 'sha256', $body, wp_salt( 'auth' ) );
+		if ( ! hash_equals( $expected_signature, $signature ) ) {
+			return null;
+		}
+
+		$base64_body = strtr( $body, '-_', '+/' );
+		$padding     = strlen( $base64_body ) % 4;
+		if ( $padding ) {
+			$base64_body .= str_repeat( '=', 4 - $padding );
+		}
+
+		$decoded = base64_decode( $base64_body, true );
+		if ( false === $decoded ) {
+			return null;
+		}
+
+		$payload = json_decode( $decoded, true );
+		return is_array( $payload ) ? $payload : null;
+	}
+
+	/**
+	 * Return the server-rendered page URL from a valid request context token.
+	 *
+	 * @since 2.5.14
+	 * @param int $test_id Expected test ID.
+	 * @return string Server-rendered page URL, or empty string on failure.
+	 */
+	private function get_valid_page_context_url( $test_id ) {
+		$raw_token = isset( $_POST['page_context'] ) ? sanitize_text_field( wp_unslash( $_POST['page_context'] ) ) : '';
+		$payload   = self::parse_page_context_token( $raw_token );
+
+		if ( null === $payload ) {
+			return '';
+		}
+
+		if ( empty( $payload['expires_at'] ) || (int) $payload['expires_at'] < time() ) {
+			return '';
+		}
+
+		if ( empty( $payload['test_id'] ) || absint( $payload['test_id'] ) !== absint( $test_id ) ) {
+			return '';
+		}
+
+		return isset( $payload['page_url'] ) ? substr( esc_url_raw( $payload['page_url'] ), 0, 1000 ) : '';
+	}
+
+	/**
+	 * Verify the signed page context matches the test's configured page URL.
+	 *
+	 * @since 2.5.14
+	 * @param int    $test_id       Test ID.
+	 * @param string $test_page_url Stored test page URL.
+	 * @return bool
+	 */
+	private function request_has_page_context_for_test( $test_id, $test_page_url ) {
+		$page_context_url = $this->get_valid_page_context_url( $test_id );
+		if ( '' === $page_context_url ) {
+			return false;
+		}
+
+		return $this->conversion_page_matches( $test_page_url, $page_context_url );
+	}
+
+	/**
+	 * Verify the signed page context matches a stored pageview goal trigger.
+	 *
+	 * @since 2.5.14
+	 * @param int    $test_id       Test ID.
+	 * @param string $trigger_event Stored pageview trigger URL/path.
+	 * @return bool
+	 */
+	private function request_has_page_context_for_pageview_goal( $test_id, $trigger_event ) {
+		$page_context_url = $this->get_valid_page_context_url( $test_id );
+		if ( '' === $page_context_url ) {
+			return false;
+		}
+
+		return $this->pageview_context_matches( $trigger_event, $page_context_url );
+	}
+
+	/**
 	 * Build the cookie name that stores server-issued assignment proof.
 	 *
 	 * @since 2.5.6
@@ -608,18 +750,6 @@ class ElementTest_Ajax_Handler {
 				}
 			}
 
-			// Remove variants that were deleted from the form.
-			if ( ! empty( $submitted_variant_ids ) ) {
-				$ids_safe     = array_map( 'absint', $submitted_variant_ids );
-				$placeholders = implode( ',', array_fill( 0, count( $ids_safe ), '%d' ) );
-				$wpdb->query(
-					$wpdb->prepare(
-						// phpcs:ignore WordPress.DB.PreparedSQLPlaceholders.UnfinishedPrepare, WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- $placeholders is a %d-only list sized to the value count.
-						"DELETE FROM {$wpdb->prefix}elementtest_variants WHERE test_id = %d AND variant_id NOT IN ({$placeholders})",
-						array_merge( array( $test_id ), $ids_safe )
-					)
-				);
-			}
 		}
 
 		// Save conversion goals if provided.
@@ -743,6 +873,19 @@ class ElementTest_Ajax_Handler {
 					)
 				);
 			}
+		}
+
+		// Remove variants that were deleted from the form only after all goal rows are valid.
+		if ( isset( $submitted_variant_ids ) && ! empty( $submitted_variant_ids ) ) {
+			$ids_safe     = array_map( 'absint', $submitted_variant_ids );
+			$placeholders = implode( ',', array_fill( 0, count( $ids_safe ), '%d' ) );
+			$wpdb->query(
+				$wpdb->prepare(
+					// phpcs:ignore WordPress.DB.PreparedSQLPlaceholders.UnfinishedPrepare, WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- $placeholders is a %d-only list sized to the value count.
+					"DELETE FROM {$wpdb->prefix}elementtest_variants WHERE test_id = %d AND variant_id NOT IN ({$placeholders})",
+					array_merge( array( $test_id ), $ids_safe )
+				)
+			);
 		}
 
 		// Return the saved test.
@@ -1434,9 +1577,10 @@ class ElementTest_Ajax_Handler {
 	 * a short time window.
 	 *
 	 * Expects POST data:
-	 *   - test_id    (int, required)
-	 *   - variant_id (int, required)
-	 *   - user_hash  (string, required) Anonymous visitor identifier.
+	 *   - test_id      (int, required)
+	 *   - variant_id   (int, required)
+	 *   - user_hash    (string, required) Anonymous visitor identifier.
+	 *   - page_context (string, required) Signed server-rendered page context.
 	 *
 	 * @since 1.0.0
 	 */
@@ -1469,19 +1613,22 @@ class ElementTest_Ajax_Handler {
 		}
 
 		// Verify the test is currently running.
-		$test_status = $wpdb->get_var(
+		$test = $wpdb->get_row(
 			$wpdb->prepare(
-				"SELECT status FROM {$wpdb->prefix}elementtest_tests WHERE test_id = %d",
+				"SELECT status, page_url FROM {$wpdb->prefix}elementtest_tests WHERE test_id = %d",
 				$test_id
-			)
+			),
+			ARRAY_A
 		);
 
-		if ( 'running' !== $test_status ) {
+		if ( empty( $test ) || 'running' !== $test['status'] ) {
 			$this->record_invalid_request();
 			wp_send_json_error(
 				array( 'message' => __( 'This test is not currently running.', 'elementtest-pro' ) )
 			);
 		}
+
+		$test_page_url = isset( $test['page_url'] ) ? esc_url_raw( $test['page_url'] ) : '';
 
 		// Verify the variant belongs to the test.
 		$variant_exists = $wpdb->get_var(
@@ -1496,6 +1643,14 @@ class ElementTest_Ajax_Handler {
 			$this->record_invalid_request();
 			wp_send_json_error(
 				array( 'message' => __( 'Variant does not belong to the specified test.', 'elementtest-pro' ) )
+			);
+		}
+
+		if ( ! $this->request_has_page_context_for_test( $test_id, $test_page_url ) ) {
+			$this->record_invalid_request();
+			status_header( 403 );
+			wp_send_json_error(
+				array( 'message' => __( 'Valid page context is required.', 'elementtest-pro' ) )
 			);
 		}
 
@@ -1580,7 +1735,7 @@ class ElementTest_Ajax_Handler {
 	 *   - user_hash     (string, required) Anonymous visitor identifier.
 	 *   - conversion_id (int, optional) Links to a specific conversion goal.
 	 *   - revenue       (float, optional) Revenue amount for this conversion.
-	 *   - page_url      (string, required for non-pageview goals) Current page URL.
+	 *   - page_context  (string, required) Signed server-rendered page context.
 	 *
 	 * @since 1.0.0
 	 */
@@ -1596,7 +1751,6 @@ class ElementTest_Ajax_Handler {
 		$user_hash     = ElementTest_Visitor::get_user_hash();
 		$conversion_id = isset( $_POST['conversion_id'] ) ? absint( $_POST['conversion_id'] ) : 0;
 		$client_revenue = isset( $_POST['revenue'] ) ? floatval( $_POST['revenue'] ) : 0.00;
-		$client_page_url = isset( $_POST['page_url'] ) ? substr( esc_url_raw( wp_unslash( $_POST['page_url'] ) ), 0, 500 ) : '';
 		$product_id    = isset( $_POST['product_id'] ) ? absint( $_POST['product_id'] ) : 0;
 		$product_name  = isset( $_POST['product_name'] ) ? sanitize_text_field( wp_unslash( $_POST['product_name'] ) ) : '';
 		$product_qty   = isset( $_POST['product_qty'] ) ? absint( $_POST['product_qty'] ) : 0;
@@ -1669,13 +1823,14 @@ class ElementTest_Ajax_Handler {
 		}
 
 		$conversion_trigger_type = '';
+		$conversion_trigger_event = '';
 		$db_revenue_value        = 0.00;
 
 		// If a conversion_id is specified, verify it belongs to the test.
 		if ( $conversion_id > 0 ) {
 			$conversion = $wpdb->get_row(
 				$wpdb->prepare(
-					"SELECT conversion_id, trigger_type, revenue_value
+					"SELECT conversion_id, trigger_type, trigger_event, revenue_value
 					FROM {$wpdb->prefix}elementtest_conversions
 					WHERE conversion_id = %d AND test_id = %d",
 					$conversion_id,
@@ -1692,12 +1847,20 @@ class ElementTest_Ajax_Handler {
 			}
 
 			$conversion_trigger_type = isset( $conversion['trigger_type'] ) ? sanitize_key( $conversion['trigger_type'] ) : '';
+			$conversion_trigger_event = isset( $conversion['trigger_event'] ) ? sanitize_text_field( $conversion['trigger_event'] ) : '';
 			$db_revenue_value        = isset( $conversion['revenue_value'] ) ? floatval( $conversion['revenue_value'] ) : 0.00;
 		}
 
 		// Enforce page-scoped conversion tracking at the write boundary.
-		// Pageview goals are intentionally allowed to track cross-page destinations.
-		if ( 'pageview' !== $conversion_trigger_type && ! $this->conversion_page_matches( $test_page_url, $client_page_url ) ) {
+		if ( 'pageview' === $conversion_trigger_type ) {
+			if ( ! $this->request_has_page_context_for_pageview_goal( $test_id, $conversion_trigger_event ) ) {
+				$this->record_invalid_request();
+				status_header( 400 );
+				wp_send_json_error(
+					array( 'message' => __( 'Conversion event is not scoped to the pageview goal.', 'elementtest-pro' ) )
+				);
+			}
+		} elseif ( ! $this->request_has_page_context_for_test( $test_id, $test_page_url ) ) {
 			$this->record_invalid_request();
 			status_header( 400 );
 			wp_send_json_error(
@@ -1945,6 +2108,147 @@ class ElementTest_Ajax_Handler {
 	}
 
 	/**
+	 * Validate that a signed page-context URL matches a pageview goal trigger.
+	 *
+	 * Mirrors the frontend pageview matching rules so the write boundary no
+	 * longer trusts the caller's posted page_url for pageview conversions.
+	 *
+	 * @since 2.5.14
+	 * @param string $trigger_event Stored pageview goal trigger.
+	 * @param string $context_url   Server-rendered page URL from signed token.
+	 * @return bool
+	 */
+	private function pageview_context_matches( $trigger_event, $context_url ) {
+		$trigger_event = trim( (string) $trigger_event );
+		$context_url   = trim( (string) $context_url );
+
+		if ( '' === $trigger_event || '' === $context_url ) {
+			return false;
+		}
+
+		$current_path        = $this->normalize_pageview_path( $context_url );
+		$relative_candidates = $this->get_relative_url_candidates( $context_url );
+
+		if ( '' === $current_path ) {
+			return false;
+		}
+
+		if ( '*' === substr( $trigger_event, -1 ) ) {
+			$prefix            = substr( $trigger_event, 0, -1 );
+			$has_query_or_hash = false !== strpos( $prefix, '?' ) || false !== strpos( $prefix, '#' );
+
+			if ( $has_query_or_hash ) {
+				if ( 0 === strpos( $context_url, $prefix ) ) {
+					return true;
+				}
+
+				foreach ( $relative_candidates as $relative_url ) {
+					if ( 0 === strpos( $relative_url, $prefix ) ) {
+						return true;
+					}
+				}
+
+				return false;
+			}
+
+			$trigger_path = $this->normalize_pageview_path( $prefix );
+			return '/' === $trigger_path
+				|| $current_path === $trigger_path
+				|| 0 === strpos( $current_path, $trigger_path . '/' );
+		}
+
+		$has_query_or_hash = false !== strpos( $trigger_event, '?' ) || false !== strpos( $trigger_event, '#' );
+		if ( $has_query_or_hash ) {
+			if ( $context_url === $trigger_event ) {
+				return true;
+			}
+
+			foreach ( $relative_candidates as $relative_url ) {
+				if ( $relative_url === $trigger_event ) {
+					return true;
+				}
+			}
+
+			return false;
+		}
+
+		return $current_path === $this->normalize_pageview_path( $trigger_event );
+	}
+
+	/**
+	 * Normalize a URL/path using the same path-only semantics as frontend PHP.
+	 *
+	 * @since 2.5.14
+	 * @param string $url URL or path.
+	 * @return string Normalized lowercase path, or empty string.
+	 */
+	private function normalize_pageview_path( $url ) {
+		$path = wp_parse_url( $url, PHP_URL_PATH );
+		$path = $path ? $path : '/';
+
+		$home_path = wp_parse_url( home_url(), PHP_URL_PATH );
+		$home_path = $home_path ? untrailingslashit( $home_path ) : '';
+
+		if ( '' !== $home_path && 0 === strpos( $path, $home_path ) ) {
+			$path = substr( $path, strlen( $home_path ) );
+		}
+
+		$path = strtolower( $path );
+		$path = untrailingslashit( $path );
+
+		if ( '' === $path ) {
+			$path = '/';
+		}
+
+		if ( '/' !== $path[0] ) {
+			$path = '/' . $path;
+		}
+
+		return $path;
+	}
+
+	/**
+	 * Build relative URL forms for query/hash-aware pageview comparisons.
+	 *
+	 * @since 2.5.14
+	 * @param string $url Full or relative URL.
+	 * @return array Unique relative URL candidates.
+	 */
+	private function get_relative_url_candidates( $url ) {
+		$parts = wp_parse_url( $url );
+		if ( false === $parts ) {
+			return array();
+		}
+
+		$path = isset( $parts['path'] ) ? (string) $parts['path'] : '/';
+		if ( '' === $path ) {
+			$path = '/';
+		}
+
+		$suffix = '';
+		if ( isset( $parts['query'] ) && '' !== $parts['query'] ) {
+			$suffix .= '?' . $parts['query'];
+		}
+		if ( isset( $parts['fragment'] ) && '' !== $parts['fragment'] ) {
+			$suffix .= '#' . $parts['fragment'];
+		}
+
+		$candidates = array( $path . $suffix );
+
+		$home_path = wp_parse_url( home_url(), PHP_URL_PATH );
+		$home_path = $home_path ? untrailingslashit( $home_path ) : '';
+		if ( '' !== $home_path && 0 === strpos( $path, $home_path ) ) {
+			$stripped_path = substr( $path, strlen( $home_path ) );
+			if ( '' === $stripped_path ) {
+				$stripped_path = '/';
+			}
+			$candidates[] = $stripped_path . $suffix;
+		}
+
+		return array_values( array_unique( $candidates ) );
+	}
+
+	/**
 	 * Check per-IP rate limit for a tracking action.
 	 *
 	 * Uses WordPress transients to count requests per IP/test/event-type
@@ -2186,8 +2490,9 @@ class ElementTest_Ajax_Handler {
 	 * Available to both authenticated and guest users.
 	 *
 	 * Expects POST data:
-	 *   - test_id   (int, required)
-	 *   - user_hash (string, required) Anonymous visitor identifier.
+	 *   - test_id      (int, required)
+	 *   - user_hash    (string, required) Anonymous visitor identifier.
+	 *   - page_context (string, required) Signed server-rendered page context.
 	 *
 	 * @since 1.0.0
 	 */
@@ -2196,10 +2501,9 @@ class ElementTest_Ajax_Handler {
 
 		global $wpdb;
 
-		$test_id         = isset( $_POST['test_id'] ) ? absint( $_POST['test_id'] ) : 0;
-		$user_hash       = ElementTest_Visitor::get_user_hash();
-		$client_page_url = isset( $_POST['page_url'] ) ? substr( esc_url_raw( wp_unslash( $_POST['page_url'] ) ), 0, 500 ) : '';
-		$force_variant   = isset( $_POST['force_variant'] ) ? sanitize_text_field( wp_unslash( $_POST['force_variant'] ) ) : '';
+		$test_id       = isset( $_POST['test_id'] ) ? absint( $_POST['test_id'] ) : 0;
+		$user_hash     = ElementTest_Visitor::get_user_hash();
+		$force_variant = isset( $_POST['force_variant'] ) ? sanitize_text_field( wp_unslash( $_POST['force_variant'] ) ) : '';
 
 		// Validate required fields.
 		if ( ! $test_id || empty( $user_hash ) ) {
@@ -2235,7 +2539,7 @@ class ElementTest_Ajax_Handler {
 		}
 
 		$test_page_url = isset( $test['page_url'] ) ? esc_url_raw( $test['page_url'] ) : '';
-		if ( ! $this->conversion_page_matches( $test_page_url, $client_page_url ) ) {
+		if ( ! $this->request_has_page_context_for_test( $test_id, $test_page_url ) ) {
 			$this->record_invalid_request();
 			status_header( 400 );
 			wp_send_json_error(
@@ -2653,14 +2957,20 @@ class ElementTest_Ajax_Handler {
 			}
 		}
 
-		$response = wp_remote_get( $url, array(
-			'timeout'   => 15,
-			'sslverify' => apply_filters( 'elementtest_proxy_sslverify', true ),
-			'cookies'   => $forward_cookies,
+		$response = wp_safe_remote_get( $url, array(
+			'timeout'     => 15,
+			'redirection' => 0,
+			'sslverify'   => apply_filters( 'elementtest_proxy_sslverify', true ),
+			'cookies'     => $forward_cookies,
 		) );
 
 		if ( is_wp_error( $response ) ) {
 			wp_die( esc_html( $response->get_error_message() ), 500 );
+		}
+
+		$response_code = (int) wp_remote_retrieve_response_code( $response );
+		if ( $response_code >= 300 && $response_code < 400 ) {
+			wp_die( esc_html__( 'Redirects are not allowed in the page proxy.', 'elementtest-pro' ), 403 );
 		}
 
 		$html = wp_remote_retrieve_body( $response );
