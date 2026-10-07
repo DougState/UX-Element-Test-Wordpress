@@ -123,8 +123,8 @@ class ElementTest_Visitor {
 	 *
 	 * The set of trusted-proxy CIDRs is supplied by the
 	 * `elementtest_trusted_proxy_cidrs` filter, which the plugin wires
-	 * to the admin "Reverse Proxy / CDN" setting (Cloudflare ranges,
-	 * private/loopback ranges for nginx, or a custom list).
+	 * to the admin "Reverse Proxy / CDN" setting (Cloudflare edge ranges,
+	 * or an explicit list via filter for nginx/custom setups).
 	 *
 	 * @since  2.5.4
 	 * @param  string $ip Validated IP address (IPv4 or IPv6).

@@ -164,7 +164,7 @@ $settings = isset( $settings ) ? $settings : array();
 			</div>
 			<div class="inside">
 				<p class="description" style="margin-bottom: 12px;">
-					<?php esc_html_e( 'ElementTest needs your visitors\' real IP addresses for accurate rate limiting and deduplication. Most managed hosting providers (GoDaddy, SiteGround, Kinsta, WP Engine, etc.) run Nginx or a load balancer in front of WordPress. If unsure, select "Nginx / Managed Hosting" — it safely falls back to the direct connection IP when proxy headers are not present.', 'elementtest-pro' ); ?>
+					<?php esc_html_e( 'ElementTest needs your visitors\' real IP addresses for accurate rate limiting and deduplication. Most managed hosts run Nginx or a load balancer in front of WordPress. Forwarded headers are only trusted when the direct connection comes from a known proxy IP range — Cloudflare ships built-in ranges; Nginx / Custom require you to declare your proxy\'s egress CIDR via the elementtest_trusted_proxy_cidrs filter (secure default: headers ignored until then).', 'elementtest-pro' ); ?>
 				</p>
 				<table class="form-table" role="presentation">
 					<tbody>
@@ -203,7 +203,7 @@ $settings = isset( $settings ) ? $settings : array();
 											<?php checked( isset( $settings['proxy_type'] ) ? $settings['proxy_type'] : 'none', 'nginx' ); ?>
 										>
 										<?php esc_html_e( 'Nginx / Managed Hosting', 'elementtest-pro' ); ?>
-										<span class="description">&mdash; <?php esc_html_e( 'recommended for most managed hosts (GoDaddy, SiteGround, Kinsta, WP Engine, etc.)', 'elementtest-pro' ); ?></span>
+										<span class="description">&mdash; <?php esc_html_e( 'trusts X-Real-IP / X-Forwarded-For only after you add your proxy CIDR via elementtest_trusted_proxy_cidrs', 'elementtest-pro' ); ?></span>
 									</label>
 									<br>
 									<label>

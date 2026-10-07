@@ -333,7 +333,7 @@ class ElementTest_Frontend {
 	 */
 	private function get_current_url() {
 		$host = isset( $_SERVER['HTTP_HOST'] ) ? sanitize_text_field( wp_unslash( $_SERVER['HTTP_HOST'] ) ) : '';
-		$uri  = isset( $_SERVER['REQUEST_URI'] ) ? sanitize_text_field( wp_unslash( $_SERVER['REQUEST_URI'] ) ) : '/';
+		$uri  = isset( $_SERVER['REQUEST_URI'] ) ? $this->sanitize_current_request_uri( wp_unslash( $_SERVER['REQUEST_URI'] ) ) : '/';
 
 		if ( '' === $host ) {
 			$home_host = wp_parse_url( home_url(), PHP_URL_HOST );
@@ -341,6 +341,32 @@ class ElementTest_Frontend {
 		}
 
 		return ( is_ssl() ? 'https' : 'http' ) . '://' . $host . $uri;
+	}
+
+	/**
+	 * Sanitize REQUEST_URI without destroying percent-encoded query octets.
+	 *
+	 * WordPress' sanitize_text_field() strips `%xx` sequences, but page-context
+	 * tokens need the exact path/query bytes that the browser will later post
+	 * back for cache-safe pageview validation.
+	 *
+	 * @since 2.5.15
+	 * @param string $request_uri Raw request URI.
+	 * @return string Safe request URI for URL construction.
+	 */
+	private function sanitize_current_request_uri( $request_uri ) {
+		$request_uri = (string) $request_uri;
+		$request_uri = preg_replace( '/[\x00-\x1F\x7F]/', '', $request_uri );
+
+		if ( ! is_string( $request_uri ) || '' === $request_uri ) {
+			return '/';
+		}
+
+		if ( '/' !== $request_uri[0] ) {
+			$request_uri = '/' . ltrim( $request_uri, '/' );
+		}
+
+		return $request_uri;
 	}
 
 	/**

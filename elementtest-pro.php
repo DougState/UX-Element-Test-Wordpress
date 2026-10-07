@@ -3,7 +3,7 @@
  * Plugin Name: ElementTest Pro
  * Plugin URI: https://github.com/DougState/elementtest-pro
  * Description: A/B test various elements (CSS, copy, JS, images) of your pages and track conversion data to measure performance.
- * Version: 2.5.15
+ * Version: 2.5.16
  * Requires at least: 5.6
  * Tested up to: 7.0
  * Requires PHP: 7.4
@@ -23,7 +23,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 // Define plugin constants
-define( 'ELEMENTTEST_VERSION', '2.5.15' );
+define( 'ELEMENTTEST_VERSION', '2.5.16' );
 define( 'ELEMENTTEST_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'ELEMENTTEST_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
 define( 'ELEMENTTEST_PLUGIN_BASENAME', plugin_basename( __FILE__ ) );
@@ -120,7 +120,7 @@ class ElementTest_Pro {
      * Forwarded IP headers are only honored when the direct connection
      * (REMOTE_ADDR) falls inside one of these ranges, so a request that
      * bypasses the proxy cannot spoof its IP. Sites whose proxy connects
-     * from a public IP not covered by the defaults below should add their
+     * from a public IP (or any nginx/managed-host setup) should add their
      * proxy's CIDR via the `elementtest_trusted_proxy_cidrs` filter.
      *
      * @since  2.5.4
@@ -160,16 +160,13 @@ class ElementTest_Pro {
                 ) );
                 break;
             case 'nginx':
-                // Loopback + RFC1918 private ranges: the same-host or
-                // internal-network reverse proxy used by most managed hosts.
-                $cidrs = array_merge( $cidrs, array(
-                    '127.0.0.0/8',
-                    '10.0.0.0/8',
-                    '172.16.0.0/12',
-                    '192.168.0.0/16',
-                    '::1/128',
-                    'fc00::/7',
-                ) );
+                // Intentionally ships no default CIDRs. Trusting loopback /
+                // RFC1918 by default is unsafe on common php-fpm setups where
+                // REMOTE_ADDR is 127.0.0.1 for every request — any client that
+                // can reach PHP (or whose connection appears as loopback) could
+                // spoof X-Forwarded-For / X-Real-IP. Declare your proxy's real
+                // egress CIDR via the elementtest_trusted_proxy_cidrs filter;
+                // without it, forwarded headers are ignored (secure default).
                 break;
             // 'custom' ships no default CIDRs — the admin supplies the
             // proxy's address range via the elementtest_trusted_proxy_cidrs

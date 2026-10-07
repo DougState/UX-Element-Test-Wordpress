@@ -168,12 +168,44 @@ class ElementTest_Ajax_Handler {
 	 * @since 1.0.0
 	 */
 	private function verify_public_request() {
-		if ( ! check_ajax_referer( 'elementtest-public', 'nonce', false ) ) {
-			wp_send_json_error(
-				array( 'message' => __( 'Security verification failed.', 'elementtest-pro' ) ),
-				403
-			);
+		if ( check_ajax_referer( 'elementtest-public', 'nonce', false ) ) {
+			return;
 		}
+
+		if ( $this->request_has_valid_page_context_credential() ) {
+			return;
+		}
+
+		wp_send_json_error(
+			array( 'message' => __( 'Security verification failed.', 'elementtest-pro' ) ),
+			403
+		);
+	}
+
+	/**
+	 * Verify a signed page-context token can serve as a cache-safe credential.
+	 *
+	 * Full-page caches can serve localized public nonces after the WordPress
+	 * nonce window has elapsed. A valid signed page_context proves this payload
+	 * came from plugin-rendered HTML; endpoint-specific handlers still verify
+	 * the test, page/goal scope, variant assignment proof, and rate limits.
+	 *
+	 * @since 2.5.15
+	 * @return bool
+	 */
+	private function request_has_valid_page_context_credential() {
+		$raw_token = isset( $_POST['page_context'] ) ? sanitize_text_field( wp_unslash( $_POST['page_context'] ) ) : '';
+		$payload   = self::parse_page_context_token( $raw_token );
+
+		if ( null === $payload ) {
+			return false;
+		}
+
+		if ( empty( $payload['expires_at'] ) || (int) $payload['expires_at'] < time() ) {
+			return false;
+		}
+
+		return ! empty( $payload['test_id'] ) && absint( $payload['test_id'] ) > 0;
 	}
 
 	/**
@@ -213,7 +245,17 @@ class ElementTest_Ajax_Handler {
 	 * @return int Token TTL in seconds.
 	 */
 	private static function get_page_context_token_ttl() {
-		$default_ttl = DAY_IN_SECONDS;
+		$settings    = get_option( 'elementtest_settings', array() );
+		$cookie_days = isset( $settings['cookie_days'] ) ? absint( $settings['cookie_days'] ) : 30;
+
+		if ( $cookie_days <= 0 ) {
+			$cookie_days = 30;
+		}
+
+		// Tokens are embedded in cacheable HTML, so they must cover the same
+		// attribution window as the client-side variant cookie.
+		$cookie_days = min( 365, $cookie_days );
+		$default_ttl = $cookie_days * DAY_IN_SECONDS;
 		$ttl         = (int) apply_filters( 'elementtest_page_context_token_ttl', $default_ttl );
 
 		return $ttl > 0 ? $ttl : $default_ttl;
@@ -315,7 +357,9 @@ class ElementTest_Ajax_Handler {
 			return false;
 		}
 
-		return $this->pageview_context_matches( $trigger_event, $page_context_url );
+		$client_page_url = isset( $_POST['page_url'] ) ? esc_url_raw( wp_unslash( $_POST['page_url'] ) ) : '';
+
+		return $this->pageview_context_matches( $trigger_event, $page_context_url, $client_page_url );
 	}
 
 	/**
@@ -2114,16 +2158,21 @@ class ElementTest_Ajax_Handler {
 	 * longer trusts the caller's posted page_url for pageview conversions.
 	 *
 	 * @since 2.5.14
-	 * @param string $trigger_event Stored pageview goal trigger.
-	 * @param string $context_url   Server-rendered page URL from signed token.
+	 * @param string $trigger_event   Stored pageview goal trigger.
+	 * @param string $context_url     Server-rendered page URL from signed token.
+	 * @param string $client_page_url Browser-observed URL, used only to supply fragments.
 	 * @return bool
 	 */
-	private function pageview_context_matches( $trigger_event, $context_url ) {
+	private function pageview_context_matches( $trigger_event, $context_url, $client_page_url = '' ) {
 		$trigger_event = trim( (string) $trigger_event );
 		$context_url   = trim( (string) $context_url );
 
 		if ( '' === $trigger_event || '' === $context_url ) {
 			return false;
+		}
+
+		if ( false !== strpos( $trigger_event, '#' ) ) {
+			$context_url = $this->add_verified_client_fragment_to_context_url( $context_url, $client_page_url );
 		}
 
 		$current_path        = $this->normalize_pageview_path( $context_url );
@@ -2173,6 +2222,72 @@ class ElementTest_Ajax_Handler {
 		}
 
 		return $current_path === $this->normalize_pageview_path( $trigger_event );
+	}
+
+	/**
+	 * Add the browser URL fragment to a signed context URL after base verification.
+	 *
+	 * URL fragments never reach PHP in REQUEST_URI, so signed context tokens can
+	 * only prove the rendered path/query. For hash-based pageview goals, accept
+	 * the browser-provided fragment only when the browser URL without that
+	 * fragment matches the signed context.
+	 *
+	 * @since 2.5.15
+	 * @param string $context_url     Server-rendered page URL from signed token.
+	 * @param string $client_page_url Browser-observed URL posted by frontend JS.
+	 * @return string Context URL with a verified fragment appended, or original.
+	 */
+	private function add_verified_client_fragment_to_context_url( $context_url, $client_page_url ) {
+		$context_url     = trim( (string) $context_url );
+		$client_page_url = trim( (string) $client_page_url );
+
+		if ( '' === $context_url || '' === $client_page_url || false === strpos( $client_page_url, '#' ) ) {
+			return $context_url;
+		}
+
+		$fragment = wp_parse_url( $client_page_url, PHP_URL_FRAGMENT );
+		if ( null === $fragment || false === $fragment || '' === $fragment ) {
+			return $context_url;
+		}
+
+		$client_url_without_fragment = substr( $client_page_url, 0, strpos( $client_page_url, '#' ) );
+		if ( ! $this->pageview_context_base_matches_client_url( $context_url, $client_url_without_fragment ) ) {
+			return $context_url;
+		}
+
+		return strtok( $context_url, '#' ) . '#' . $fragment;
+	}
+
+	/**
+	 * Compare signed and browser URLs without considering fragments.
+	 *
+	 * @since 2.5.15
+	 * @param string $context_url                 Signed server-observed URL.
+	 * @param string $client_url_without_fragment Browser URL stripped before '#'.
+	 * @return bool
+	 */
+	private function pageview_context_base_matches_client_url( $context_url, $client_url_without_fragment ) {
+		$context_url                 = trim( (string) $context_url );
+		$client_url_without_fragment = trim( (string) $client_url_without_fragment );
+
+		if ( '' === $context_url || '' === $client_url_without_fragment ) {
+			return false;
+		}
+
+		if ( strtok( $context_url, '#' ) === $client_url_without_fragment ) {
+			return true;
+		}
+
+		$context_candidates = $this->get_relative_url_candidates( strtok( $context_url, '#' ) );
+		$client_candidates  = $this->get_relative_url_candidates( $client_url_without_fragment );
+
+		foreach ( $context_candidates as $context_candidate ) {
+			if ( in_array( $context_candidate, $client_candidates, true ) ) {
+				return true;
+			}
+		}
+
+		return false;
 	}
 
 	/**
@@ -2979,20 +3094,31 @@ class ElementTest_Ajax_Handler {
 			wp_die( esc_html__( 'Failed to load page content.', 'elementtest-pro' ), 500 );
 		}
 
+		// Defense in depth: strip page scripts / inline handlers before the
+		// selector iframe renders them. The iframe sandbox also omits
+		// allow-same-origin so residual script cannot reach admin privileges.
+		$html = $this->sanitize_proxied_selector_html( $html );
+
 		// Inject the selector script before </body>.
 		$inject_url = ELEMENTTEST_PLUGIN_URL . 'assets/js/selector-inject.js?v=' . ELEMENTTEST_VERSION;
 		// phpcs:ignore WordPress.WP.EnqueuedResources.NonEnqueuedScript -- The tag is injected into proxied third-party page HTML rendered inside the element-selector iframe, where WordPress is not loaded and wp_enqueue_script() cannot run.
 		$script_tag = '<script src="' . esc_url( $inject_url ) . '"></script>';
 
-		// Also inject a base tag to fix relative URLs.
-		$base_tag = '<base href="' . esc_url( $url ) . '">';
+		// Also inject a base tag to fix relative URLs, plus a CSP meta that
+		// only allows our selector inject script to execute.
+		$csp_script_src = esc_url_raw( ELEMENTTEST_PLUGIN_URL . 'assets/js/' );
+		$csp_meta       = '<meta http-equiv="Content-Security-Policy" content="'
+			. esc_attr( 'script-src ' . $csp_script_src . '; object-src \'none\'; base-uri \'none\'' )
+			. '">';
+		$base_tag       = '<base href="' . esc_url( $url ) . '">';
+		$head_inject    = $csp_meta . $base_tag;
 
-		// Insert base tag after <head>. Uses preg_replace_callback to avoid
+		// Insert CSP + base tag after <head>. Uses preg_replace_callback to avoid
 		// interpreting $N backreference sequences in the URL.
 		$html = preg_replace_callback(
 			'/(<head[^>]*>)/i',
-			static function ( $matches ) use ( $base_tag ) {
-				return $matches[1] . $base_tag;
+			static function ( $matches ) use ( $head_inject ) {
+				return $matches[1] . $head_inject;
 			},
 			$html,
 			1
@@ -3010,8 +3136,40 @@ class ElementTest_Ajax_Handler {
 		header( 'X-Frame-Options: SAMEORIGIN' );
 		header( 'X-Content-Type-Options: nosniff' );
 		header( 'Referrer-Policy: same-origin' );
-		echo $html; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- proxied page HTML.
+		header( 'Content-Security-Policy: script-src ' . $csp_script_src . "; object-src 'none'; base-uri 'none'" );
+		echo $html; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- proxied page HTML after script stripping.
 		exit;
+	}
+
+	/**
+	 * Strip executable markup from HTML proxied into the element selector.
+	 *
+	 * Removes script/noscript blocks, javascript: URLs, and inline event
+	 * handler attributes so a stored XSS on a same-site page cannot run
+	 * inside the admin selector iframe.
+	 *
+	 * @since 2.5.16
+	 * @param string $html Raw proxied HTML.
+	 * @return string Sanitized HTML safe for selector rendering.
+	 */
+	private function sanitize_proxied_selector_html( $html ) {
+		$html = (string) $html;
+
+		// Remove script and noscript elements (including content).
+		$html = preg_replace( '#<script\b[^>]*>.*?</script>#is', '', $html );
+		$html = preg_replace( '#<noscript\b[^>]*>.*?</noscript>#is', '', $html );
+
+		// Neutralize javascript: / vbscript: / data:text/html URLs in common attrs.
+		$html = preg_replace(
+			'#\s(href|src|xlink:href|action)\s*=\s*(["\'])\s*(?:javascript|vbscript|data\s*:\s*text\s*/\s*html)[^"\']*\2#i',
+			' $1=$2#$2',
+			$html
+		);
+
+		// Strip inline event-handler attributes (onclick, onerror, …).
+		$html = preg_replace( '#\son[a-z]+\s*=\s*("[^"]*"|\'[^\']*\'|[^\s>]+)#i', '', $html );
+
+		return is_string( $html ) ? $html : '';
 	}
 
 	/**

@@ -323,7 +323,11 @@
 		}
 
 		try {
-			window.parent.postMessage( JSON.stringify( msg ), window.location.origin );
+			// Target '*' so postMessage still works when the iframe is sandboxed
+			// without allow-same-origin (opaque unique origin). The parent
+			// validates msg.source === 'elementtest-selector' and only accepts
+			// messages while the selector overlay is open.
+			window.parent.postMessage( JSON.stringify( msg ), '*' );
 		} catch ( e ) {
 			// Silently ignore.
 		}

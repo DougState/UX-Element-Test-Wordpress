@@ -191,7 +191,7 @@ If only Apache is listening on 80/443, select **None**. If Nginx is on 80/443 wi
 Forwarded headers (`X-Forwarded-For`, `X-Real-IP`, `CF-Connecting-IP`, or your custom header) are spoofable by any client that connects to WordPress directly, so ElementTest only honors them when the **direct connection** (`REMOTE_ADDR`) comes from a trusted proxy:
 
 - **Cloudflare** — trusts requests arriving from Cloudflare's published edge IP ranges.
-- **Nginx / Managed Hosting** — trusts requests arriving from loopback and private (RFC1918) ranges, which covers same-host and internal-network reverse proxies.
+- **Nginx / Managed Hosting** — enables reading `X-Real-IP` / `X-Forwarded-For`, but ships **no default trusted CIDRs** (loopback/RFC1918 defaults were unsafe on common php-fpm setups where every request appears as `127.0.0.1`). Add your proxy's egress range with `elementtest_trusted_proxy_cidrs` or forwarded headers stay ignored.
 - **Custom** — ships no trusted ranges by default; you must declare the IP(s) your proxy connects from (see below).
 
 When the direct connection is **not** a trusted proxy, forwarded headers are ignored and the direct connection IP is used. A request that bypasses the proxy and hits `admin-ajax.php` directly therefore cannot forge its IP to evade rate limiting or deduplication.
@@ -208,11 +208,21 @@ add_filter( 'elementtest_trusted_proxy_headers', function () {
 } );
 ```
 
-`elementtest_trusted_proxy_cidrs` — the IP ranges your proxy connects **from**. Add this if your proxy (or load balancer) reaches WordPress from a public IP not covered by the presets above; otherwise its forwarded headers will be ignored:
+`elementtest_trusted_proxy_cidrs` — the IP ranges your proxy connects **from**. Required for the Nginx and Custom presets (and for Cloudflare if you terminate TLS on your own edge). Example for a load balancer that reaches WordPress from a known egress range:
 
 ```php
 add_filter( 'elementtest_trusted_proxy_cidrs', function ( $cidrs ) {
     $cidrs[] = '203.0.113.0/24'; // Your load balancer's egress range.
+    return $cidrs;
+} );
+```
+
+If PHP-FPM only accepts connections from Nginx on the same host **and** the web server is locked down so clients cannot reach PHP directly, you may include loopback explicitly (this is no longer the plugin default):
+
+```php
+add_filter( 'elementtest_trusted_proxy_cidrs', function ( $cidrs ) {
+    $cidrs[] = '127.0.0.1/32';
+    $cidrs[] = '::1/128';
     return $cidrs;
 } );
 ```

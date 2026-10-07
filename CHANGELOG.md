@@ -2,6 +2,18 @@
 
 `readme.txt` remains the canonical WordPress.org release history for this plugin. This file mirrors the shipped release notes in a GitHub-friendly format.
 
+## 2.5.16
+
+> AppSec hardening for the admin element selector iframe and the Nginx reverse-proxy IP trust model, plus the tracking fixes from ElementTest-WP 2.5.15 that were not in the published public 2.5.15. JS `VERSION` synced to 2.5.16.
+
+- Security: **Element selector iframe no longer combines `allow-scripts` with `allow-same-origin`.** Proxied page JS cannot read `elementtestAdmin` / the admin nonce from `window.parent` or drive privileged `admin-ajax.php` actions with the admin session. Selector communication stays on `postMessage`; the inject script targets `*` because the sandboxed frame has an opaque origin.
+- Security: **`proxy_page()` strips scripts / `javascript:` URLs / inline event handlers** from proxied HTML and emits a CSP that only allows the plugin's selector inject script.
+- Security: **Nginx reverse-proxy preset ships no default trusted CIDRs.** Loopback/RFC1918 defaults let clients spoof `X-Forwarded-For` / `X-Real-IP` on common php-fpm setups where `REMOTE_ADDR` is always `127.0.0.1`. Declare proxy egress via `elementtest_trusted_proxy_cidrs`; without it, forwarded headers are ignored.
+- Fix: **Hash-fragment pageview goals** (`/thank-you#paid`, query+hash, and hash wildcards) now accept the browser fragment after the fragmentless path/query matches the signed `page_context` URL.
+- Fix: **Cached public tracking** can authenticate with an unexpired signed `page_context` token when the localized public nonce is stale. Endpoint handlers still verify test, page/goal scope, assignment proof, and rate limits.
+- Fix: **Percent-encoded request URIs** are preserved when minting frontend page-context URLs. Control characters are still stripped.
+- Fix: **Page-context token TTL** now follows the Cookie Duration setting (`cookie_days`, default 30 days, capped at 365). `elementtest_page_context_token_ttl` can still shorten or extend the default.
+
 ## 2.5.15
 
 > Public tracking page-context hardening and selector-proxy redirect lock-down, plus admin save-test variant prune reorder so goal validation failures cannot delete variants. Ported from ElementTest-WP 2.5.14 (PRs #7 and #11). JS `VERSION` synced to 2.5.15.

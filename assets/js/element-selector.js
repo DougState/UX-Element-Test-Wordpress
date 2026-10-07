@@ -60,7 +60,10 @@
 							'<div class="ets-loading-spinner"></div>' +
 							'<span>Loading page&hellip;</span>' +
 						'</div>' +
-						'<iframe id="ets-iframe" class="ets-iframe" sandbox="allow-same-origin allow-scripts"></iframe>' +
+						// Scripts-only sandbox: omit allow-same-origin so proxied
+						// page JS cannot read parent.elementtestAdmin (admin nonce)
+						// or call privileged admin-ajax with the admin session.
+						'<iframe id="ets-iframe" class="ets-iframe" sandbox="allow-scripts"></iframe>' +
 					'</div>' +
 
 					/* Bottom panel — selected element info */
@@ -171,6 +174,11 @@
 
 	function handleMessage( event ) {
 		var data;
+
+		// Ignore messages when the selector is closed.
+		if ( ! isOpen ) {
+			return;
+		}
 
 		try {
 			data = ( typeof event.data === 'string' ) ? JSON.parse( event.data ) : event.data;

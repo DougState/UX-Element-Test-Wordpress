@@ -3,7 +3,7 @@ Contributors: Doug Wagner
 Tags: ab-testing, split-testing, conversion, optimization, analytics
 Requires at least: 5.6
 Tested up to: 7.0
-Stable tag: 2.5.15
+Stable tag: 2.5.16
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -78,6 +78,16 @@ The default mode is a dry run. `--apply` writes decoded JS/CSS source back to th
 All testing data is stored in your WordPress database. No external services are used.
 
 == Changelog ==
+
+= 2.5.16 =
+* Security: Element selector iframe no longer combines allow-scripts with allow-same-origin; proxied page JS cannot read the admin nonce from window.parent.
+* Security: proxy_page() strips scripts/javascript: URLs/inline handlers and emits a CSP limited to the selector inject script.
+* Security: Nginx reverse-proxy preset ships no default trusted CIDRs; declare proxy egress via elementtest_trusted_proxy_cidrs or forwarded headers stay ignored.
+* Fix: Hash-fragment pageview conversion goals now validate using the browser fragment after the signed path/query context matches.
+* Fix: Unexpired signed page_context tokens can authenticate cached public tracking requests when the localized public nonce is stale.
+* Fix: Frontend page-context URL minting preserves percent-encoded REQUEST_URI octets instead of stripping them via sanitize_text_field().
+* Fix: Page-context token lifetime now follows the Cookie Duration setting (cookie_days, default 30 days) so cached pages remain trackable for the attribution window.
+* Internal: JS `VERSION` constant in `assets/js/frontend.js` synced to 2.5.16.
 
 = 2.5.15 =
 * Fix: Public assignment, impression, and conversion writes now require a signed server-rendered page_context token. Tracking is scoped to the rendered page, and pageview conversions are matched against the stored goal trigger instead of a posted page_url.
