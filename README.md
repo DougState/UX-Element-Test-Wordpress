@@ -69,6 +69,28 @@ wp elementtest fix-variant-changes --test-id=6 --apply --backup=t6.json
 
 The command decodes only the five entity fingerprints produced by the old sanitizer (`&amp;`, `&lt;`, `&gt;`, `&quot;`, `&#039;`/`&#39;`). Other named entities such as `&nbsp;` and `&copy;` are left intact because they may be intentional inside HTML strings.
 
+### Visual element selector proxy
+
+The visual selector is an admin-only authoring tool, not part of public test delivery. When an admin clicks **Select Element**, `assets/js/admin.js` opens `assets/js/element-selector.js`, which loads the target page through `wp_ajax_elementtest_proxy_page` in a full-screen iframe so the injected selector script can read the page DOM and return a CSS selector.
+
+Selector proxy request flow:
+
+1. The iframe URL is `admin-ajax.php?action=elementtest_proxy_page&nonce=...&url=...`.
+2. `includes/class-ajax-handler.php::proxy_page()` verifies the admin nonce and `manage_options` capability through the shared admin AJAX guard.
+3. The proxy fetches only same-site `home_url()` hosts over `http`/`https` on ports 80, 443, or the configured home URL port.
+4. Only `wordpress_logged_in_*` cookies are forwarded, redirects are disabled, and 3xx responses are rejected before any body is rendered.
+5. The returned HTML is stripped of `<script>`/`<noscript>` blocks, inline event handlers, and `javascript:`/`vbscript:`/`data:text/html` navigation URLs.
+6. The proxy injects `assets/js/selector-inject.js`, emits a CSP limited to the plugin's selector script path, and serves the iframe with `X-Frame-Options: SAMEORIGIN`.
+
+The iframe sandbox is intentionally `sandbox="allow-scripts"` without `allow-same-origin`. That gives the proxied page an opaque origin, preventing residual page script from reading `window.parent.elementtestAdmin` or reusing the admin nonce/session for privileged AJAX calls. Because opaque-origin frames cannot be addressed with a stable origin, `selector-inject.js` uses `postMessage(..., '*')`; the parent accepts only ElementTest selector messages while the overlay is open.
+
+Operational constraints:
+
+- Do not add `allow-same-origin` to the selector iframe. Combining it with `allow-scripts` would undo the admin isolation.
+- Pages that depend on their original client-side JavaScript may not fully hydrate in the selector because page scripts and inline handlers are stripped. Use a server-rendered URL or paste a manual CSS selector for those pages.
+- Off-site URLs, unexpected ports, and redirects fail closed by design. Open the final same-site URL you expect to test.
+- Keep `elementtest_proxy_sslverify` enabled in production. Disable it only for controlled local/self-signed development environments.
+
 ## Database Tables
 
 The plugin creates the following tables (prefixed with the WordPress table prefix):
@@ -89,6 +111,43 @@ All conversion goals -- including **Add to Cart (WooCommerce)** -- are scoped to
 If a test runs on `/products/my-product/`, only add-to-cart events on that page are tracked. Add-to-cart events on `/shop/`, `/cart/`, or other product pages are not captured. This is by design: it avoids injecting the frontend script site-wide, eliminates unnecessary database queries on every WooCommerce page load, and prevents timing conflicts between the plugin's anti-flicker CSS and WooCommerce's variation lifecycle JS.
 
 Cross-page conversion tracking is supported only for **Page View** goals (e.g. tracking a thank-you page visit as a conversion for a test running on a different page).
+
+## Conversion Goal Runtime Guide
+
+Conversion listeners are registered in `assets/js/frontend.js` only after the browser receives a server-authoritative variant assignment from `elementtest_get_variant_assignment`. Public conversion writes then pass through `includes/class-ajax-handler.php::track_conversion()`, which rechecks the running test, variant, conversion goal, signed page context, and assignment-proof cookie before inserting a row in `wp_elementtest_events`.
+
+Goal-type behavior and constraints:
+
+- **Click** and **Form Submit** goals use delegated document listeners, so elements added after page load can still match. Use stable CSS selectors that match the final clickable element or form. Tracking uses `navigator.sendBeacon` when available so navigation-heavy goals have a chance to write before the page unloads.
+- **Page View** goals compare paths case-insensitively after trimming trailing slashes and the WordPress home-path prefix. Triggers with `?` or `#` require exact browser URL or relative URL matches. Trailing `*` wildcards enforce path boundaries, so `/shop/*` matches `/shop/item` but not `/shopping`.
+- **Custom Event** goals can be fired by dispatching the saved DOM event name or by using the public helper:
+
+  ```js
+  window.elementtest.convert('purchase_complete', 49.99);
+  // Equivalent event form for a goal whose trigger is "purchase_complete":
+  document.dispatchEvent(new CustomEvent('purchase_complete', {
+    detail: { revenue: 49.99 }
+  }));
+  ```
+
+  The server does not trust browser-supplied revenue by default. It records the conversion goal's saved `revenue_value` unless the site explicitly opts in:
+
+  ```php
+  add_filter( 'elementtest_allow_public_custom_event_revenue', function ( $allow, $test_id, $conversion_id ) {
+      return 42 === (int) $test_id;
+  }, 10, 3 );
+  ```
+
+  When dynamic custom-event revenue is enabled, values are clamped to `elementtest_max_revenue` (default `10000.00`).
+
+- **Video Play** goals watch YouTube iframes only. The frontend adds `enablejsapi=1` when needed, sends the YouTube listening handshake, and records a conversion when the player reports state `1` (playing). Leave the selector blank to watch all YouTube iframes on the tested page, or provide a container selector to scope the listener.
+- **Add to Cart (WooCommerce)** goals listen for WooCommerce AJAX add-to-cart events, single-product add-to-cart button clicks, cart form submissions, and `wc_cart_button_updated`. Optional selectors scope the goal to a container/button. The server stores product metadata when present and deduplicates add-to-cart conversions within the 60-second window by product identity, so quick adds of different products can still count separately.
+
+Operational notes:
+
+- Direct POSTs to conversion endpoints are expected to fail unless they include the current server-rendered `page_context` and the visitor already holds the matching HttpOnly assignment-proof cookie.
+- A conversion can fire only once per `test_id` + `conversion_id` per page load in the browser; the server also suppresses duplicate conversions for the same visitor/test/variant/goal within 60 seconds.
+- Cross-page Page View goals still require a prior source-page visit so the visitor has assignment proof for the test before the destination page records the conversion.
 
 ## GA4 Integration
 

@@ -2,6 +2,14 @@
 
 `readme.txt` remains the canonical WordPress.org release history for this plugin. This file mirrors the shipped release notes in a GitHub-friendly format.
 
+## 2.5.17
+
+> Preserve percent-encoded pageview goal triggers, and stop valid-tracking rate limits from collapsing onto a shared non-public visitor IP. Ships the conversion-goal runtime guide and visual selector proxy notes. JS `VERSION` synced to 2.5.17.
+
+- Fix: **Pageview goal triggers keep percent-encoded URL octets.** `sanitize_text_field()` strips `%xx` sequences, so stored goals such as `/thank-you?order=%2Fabc%3Fz%3D1` were rewritten before exact URL comparison. Control characters are still removed. Applies when reading goals for conversion checks and when localizing pageview triggers to the browser.
+- Fix: **Valid impression and conversion rate limits apply only to publicly routable IPs.** A shared reverse-proxy `REMOTE_ADDR` such as `127.0.0.1` was counting every visitor in one transient and could reject legitimate tracking. Loopback, private, and reserved addresses now skip that limit.
+- Docs: Conversion goal runtime behavior and visual element selector proxy constraints.
+
 ## 2.5.16
 
 > AppSec hardening for the admin element selector iframe and the Nginx reverse-proxy IP trust model, plus the tracking fixes from ElementTest-WP 2.5.15 that were not in the published public 2.5.15. JS `VERSION` synced to 2.5.16.

@@ -1891,7 +1891,11 @@ class ElementTest_Ajax_Handler {
 			}
 
 			$conversion_trigger_type = isset( $conversion['trigger_type'] ) ? sanitize_key( $conversion['trigger_type'] ) : '';
-			$conversion_trigger_event = isset( $conversion['trigger_event'] ) ? sanitize_text_field( $conversion['trigger_event'] ) : '';
+			if ( isset( $conversion['trigger_event'] ) ) {
+				$conversion_trigger_event = 'pageview' === $conversion_trigger_type
+					? $this->sanitize_pageview_trigger_event( $conversion['trigger_event'] )
+					: sanitize_text_field( $conversion['trigger_event'] );
+			}
 			$db_revenue_value        = isset( $conversion['revenue_value'] ) ? floatval( $conversion['revenue_value'] ) : 0.00;
 		}
 
@@ -2225,6 +2229,23 @@ class ElementTest_Ajax_Handler {
 	}
 
 	/**
+	 * Sanitize a stored pageview trigger without destroying percent-encoded URL bytes.
+	 *
+	 * WordPress' sanitize_text_field() strips `%xx` sequences, which breaks exact
+	 * pageview goals such as `/thank-you?order=%2Fabc%3Fz%3D1`. The value is
+	 * admin-authored and used only for URL comparison here, so remove control
+	 * characters and trim while preserving URL octets.
+	 *
+	 * @since 2.5.17
+	 * @param string $trigger_event Stored pageview trigger URL/path.
+	 * @return string
+	 */
+	private function sanitize_pageview_trigger_event( $trigger_event ) {
+		$trigger_event = preg_replace( '/[\x00-\x1F\x7F]/', '', (string) $trigger_event );
+		return is_string( $trigger_event ) ? trim( $trigger_event ) : '';
+	}
+
+	/**
 	 * Add the browser URL fragment to a signed context URL after base verification.
 	 *
 	 * URL fragments never reach PHP in REQUEST_URI, so signed context tokens can
@@ -2383,8 +2404,21 @@ class ElementTest_Ajax_Handler {
 		$limits = apply_filters( 'elementtest_rate_limits', $defaults );
 		$max    = isset( $limits[ $event_type ] ) ? absint( $limits[ $event_type ] ) : 50;
 
-		$ip  = ElementTest_Visitor::get_visitor_ip();
-		$raw = $ip . '|' . $test_id . '|' . $event_type;
+		$ip = ElementTest_Visitor::get_visitor_ip();
+
+		$public_ip = filter_var(
+			$ip,
+			FILTER_VALIDATE_IP,
+			FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE
+		);
+
+		if ( false === $public_ip ) {
+			// Avoid global throttling when the resolved address is non-routable
+			// (for example a shared reverse-proxy REMOTE_ADDR).
+			return false;
+		}
+
+		$raw = (string) $public_ip . '|' . $test_id . '|' . $event_type;
 		$key = 'etrl_' . substr( hash( 'sha256', $raw ), 0, 32 );
 
 		$window_seconds = HOUR_IN_SECONDS;

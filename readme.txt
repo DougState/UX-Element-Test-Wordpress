@@ -3,7 +3,7 @@ Contributors: Doug Wagner
 Tags: ab-testing, split-testing, conversion, optimization, analytics
 Requires at least: 5.6
 Tested up to: 7.0
-Stable tag: 2.5.16
+Stable tag: 2.5.17
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -21,7 +21,7 @@ ElementTest Pro allows you to A/B test various elements (CSS, copy, JS, images) 
 * Text/copy changes
 * Image swaps
 * JavaScript behavior modifications
-* Conversion tracking with multiple goal types (click, pageview, form submit, custom event)
+* Conversion tracking with multiple goal types (click, pageview, form submit, custom event, YouTube video play, WooCommerce add-to-cart)
 * Cross-page pageview goal tracking
 * Performance analytics
 * Statistical significance calculator
@@ -77,7 +77,35 @@ The default mode is a dry run. `--apply` writes decoded JS/CSS source back to th
 
 All testing data is stored in your WordPress database. No external services are used.
 
+= How do conversion goal listeners work? =
+
+Conversion listeners are registered only after the browser receives a server-authoritative variant assignment from `elementtest_get_variant_assignment`. Public conversion writes are then rechecked server-side for running test status, variant ownership, conversion goal ownership, signed page context, and the HttpOnly assignment-proof cookie before an event row is inserted.
+
+Click and Form Submit goals use delegated document listeners, so dynamically inserted elements can still match when the saved CSS selector is stable. Tracking uses `navigator.sendBeacon` when available, which helps click and form-submit goals survive immediate navigation.
+
+Page View goals normalize path-only triggers by lowercasing, trimming trailing slashes, and stripping the WordPress home-path prefix. Triggers containing `?` or `#` require an exact browser URL or relative URL match. A trailing `*` wildcard enforces path boundaries: `/shop/*` matches `/shop/item` but not `/shopping`.
+
+Custom Event goals can be fired with `window.elementtest.convert('purchase_complete', 49.99)` or by dispatching a matching DOM event such as `document.dispatchEvent(new CustomEvent('purchase_complete', { detail: { revenue: 49.99 } }))`. Server-side revenue defaults to the saved goal `revenue_value`; browser-supplied revenue is ignored unless the site opts in with the `elementtest_allow_public_custom_event_revenue` filter, and dynamic values are clamped by `elementtest_max_revenue` (default 10000.00).
+
+Video Play goals watch YouTube iframes only. The frontend adds `enablejsapi=1` when needed, listens for YouTube player state `1` (playing), and can be scoped to a container selector. Add-to-Cart goals listen to WooCommerce AJAX events, single-product button clicks, cart form submissions, and `wc_cart_button_updated`; optional selectors scope the listener, and the server deduplicates quick repeated add-to-cart conversions by product identity within the 60-second duplicate window.
+
+Direct POSTs to the public conversion endpoint are expected to fail unless they include the current `page_context` and the visitor already has the matching assignment-proof cookie. Cross-page Page View goals still require a prior source-page visit so that proof exists before the destination page records a conversion.
+
+= What should I know about the visual element selector proxy? =
+
+The visual selector is an admin-only authoring helper. When an admin clicks **Select Element**, the overlay loads `admin-ajax.php?action=elementtest_proxy_page&nonce=...&url=...` inside a sandboxed iframe and injects the selector script so it can return a CSS selector.
+
+The proxy verifies the admin nonce/capability, fetches only same-site `home_url()` hosts over http/https on standard or configured home ports, forwards only `wordpress_logged_in_*` cookies, disables redirects, and rejects 3xx responses. Before rendering the iframe, it strips script/noscript blocks, inline event handlers, and `javascript:`/`vbscript:`/`data:text/html` URLs, then emits a CSP limited to the plugin selector script.
+
+The iframe intentionally uses `sandbox="allow-scripts"` without `allow-same-origin`. Do not add `allow-same-origin`; combining it with scripts would let proxied page code share the admin origin. Because page scripts are stripped, heavily client-rendered pages may not hydrate fully in the selector. Use the final same-site URL you expect to test, or paste a manual CSS selector when the proxy cannot render the target element.
+
 == Changelog ==
+
+= 2.5.17 =
+* Fix: Pageview goal triggers keep percent-encoded URL octets. sanitize_text_field() was stripping sequences such as %2F, so exact goals like /thank-you?order=%2Fabc%3Fz%3D1 failed to match.
+* Fix: Valid impression and conversion rate limits now apply only to publicly routable visitor IPs. Shared non-public addresses such as a reverse-proxy 127.0.0.1 no longer throttle every visitor together.
+* Docs: Conversion goal runtime behavior and visual element selector proxy constraints.
+* Internal: JS `VERSION` constant in `assets/js/frontend.js` synced to 2.5.17.
 
 = 2.5.16 =
 * Security: Element selector iframe no longer combines allow-scripts with allow-same-origin; proxied page JS cannot read the admin nonce from window.parent.

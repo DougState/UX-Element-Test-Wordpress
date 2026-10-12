@@ -247,7 +247,7 @@ class ElementTest_Frontend {
 					$matching_goals[] = array(
 						'conversion_id' => absint( $goal->conversion_id ),
 						'trigger_type'  => 'pageview',
-						'trigger_event' => sanitize_text_field( $goal->trigger_event ),
+						'trigger_event' => $this->sanitize_pageview_trigger_event( $goal->trigger_event ),
 						'revenue_value' => floatval( $goal->revenue_value ),
 					);
 				}
@@ -539,11 +539,14 @@ class ElementTest_Frontend {
 
 			$goals_data = array();
 			foreach ( $conversions as $conversion ) {
+				$trigger_type = sanitize_key( $conversion->trigger_type );
 				$goals_data[] = array(
 					'conversion_id'   => absint( $conversion->conversion_id ),
-					'trigger_type'    => sanitize_key( $conversion->trigger_type ),
+					'trigger_type'    => $trigger_type,
 					'trigger_selector' => sanitize_text_field( $conversion->trigger_selector ),
-					'trigger_event'   => sanitize_text_field( $conversion->trigger_event ),
+					'trigger_event'   => 'pageview' === $trigger_type
+						? $this->sanitize_pageview_trigger_event( $conversion->trigger_event )
+						: sanitize_text_field( $conversion->trigger_event ),
 					'revenue_value'   => floatval( $conversion->revenue_value ),
 				);
 			}
@@ -605,6 +608,21 @@ class ElementTest_Frontend {
 	 */
 	private function create_page_context_token( $test_id ) {
 		return ElementTest_Ajax_Handler::create_page_context_token( $test_id, $this->get_current_url() );
+	}
+
+	/**
+	 * Sanitize a pageview trigger without stripping encoded URL octets.
+	 *
+	 * sanitize_text_field() removes `%xx` sequences, so exact pageview goals
+	 * with encoded query values would be changed before browser-side matching.
+	 *
+	 * @since 2.5.17
+	 * @param string $trigger_event Stored pageview trigger URL/path.
+	 * @return string
+	 */
+	private function sanitize_pageview_trigger_event( $trigger_event ) {
+		$trigger_event = preg_replace( '/[\x00-\x1F\x7F]/', '', (string) $trigger_event );
+		return is_string( $trigger_event ) ? trim( $trigger_event ) : '';
 	}
 
 	// =========================================================================
